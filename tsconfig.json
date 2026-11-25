@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "rootDir": "src",
+    "outDir": "dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "paths": {
+      "@core/*": ["./src/core/*"],
+      "@identity": ["./src/context/generic/identity/public-api.ts"],
+      "@catalog": ["./src/context/domain/catalog/public-api.ts"],
+      "@ordering": ["./src/context/domain/ordering/public-api.ts"],
+      "@reviews": ["./src/context/domain/reviews/public-api.ts"],
+      "@notifications": ["./src/context/supporting/notifications/public-api.ts"]
+    }
+  },
+  "include": ["src"]
+}
