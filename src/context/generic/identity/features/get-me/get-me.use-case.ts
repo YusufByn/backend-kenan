@@ -1,9 +1,9 @@
 import { Injectable } from "@nestjs/common";
-import type { UserProfile } from "../../domain/user.entity.js";
+import type { UserProfile } from "../../domain/user.js";
 import { UserRepository } from "../../domain/user.repository.js";
 
 @Injectable()
-export class GetMeHandler {
+export class GetMeUseCase {
   constructor(private readonly users: UserRepository) {}
 
   async execute(userId: string): Promise<UserProfile> {

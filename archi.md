@@ -60,7 +60,7 @@ Exemple avec `context/generic/identity/` :
 ```
 identity/
 ├── domain/                              Le métier. Aucun import Nest.
-│   ├── user.entity.ts                   Entité User + ses règles (nom requis, format email, mot de passe ≥ 8)
+│   ├── user.ts                          Entité User + ses règles (nom requis, format email, mot de passe ≥ 8)
 │   ├── user.errors.ts                   InvalidUserError, UserNotFoundError, EmailAlreadyUsedError, InvalidCredentialsError
 │   ├── user.repository.ts               Port : stocker / retrouver des users (+ getById, assertEmailAvailable)
 │   ├── password-hasher.ts               Port : hacher / vérifier un mot de passe
@@ -68,8 +68,8 @@ identity/
 │
 ├── features/                            Une slice = une action métier
 │   ├── register/
-│   │   ├── register.controller.ts       HTTP : route + DTO → appelle le handler
-│   │   ├── register.handler.ts          Use case : orchestre domaine + ports
+│   │   ├── register.controller.ts       HTTP : route + DTO → appelle le use case
+│   │   ├── register.use-case.ts         Use case : orchestre domaine + ports
 │   │   └── register.dto.ts              Forme de la requête (class-validator)
 │   ├── login/
 │   ├── get-me/
@@ -98,8 +98,8 @@ identity/
 | Couche | Responsabilité | Peut dépendre de |
 |---|---|---|
 | `domain/` | Entités, règles métier, ports, erreurs métier | `core/errors` uniquement |
-| `features/*/` handler | Orchestrer un cas d'usage | `domain/` |
-| `features/*/` controller + DTO | Traduire HTTP ↔ handler, valider la forme de la requête | son handler, Nest |
+| `features/*/` use case | Orchestrer un cas d'usage | `domain/` |
+| `features/*/` controller + DTO | Traduire HTTP ↔ use case, valider la forme de la requête | son use case, Nest |
 | `infrastructure/` | Implémenter les ports (stockage, services externes) | `domain/`, Nest, librairies |
 | `public/` + `public-api.ts` | Exposer des capacités aux autres contextes | `domain/` |
 | `*.module.ts` | Relier les ports à leurs implémentations | tout le contexte |
@@ -122,7 +122,7 @@ ValidationPipe ──── body invalide / champ inconnu ──► RequestValid
 RegisterController                      (renvoie les données brutes)
    │
    ▼
-RegisterHandler                         (lance les erreurs)
+RegisterUseCase                         (lance les erreurs)
    │  User.register(...) ── règle métier violée ──► InvalidUserError
    │                                                   │
    ▼                                                   ▼
@@ -138,7 +138,7 @@ ApiResponseInterceptor (emballe automatiquement)
 201 + { code: 201, data: { user: {...}, accessToken }, meta: null }
 ```
 
-Le handler ne connaît que les **ports** (`UserRepository`, `PasswordHasher`, `AccessTokens`). C'est `identity.module.ts` qui décide quelle implémentation est injectée :
+Le use case ne connaît que les **ports** (`UserRepository`, `PasswordHasher`, `AccessTokens`). C'est `identity.module.ts` qui décide quelle implémentation est injectée :
 
 ```ts
 { provide: UserRepository, useClass: TypeOrmUserRepository }
@@ -198,7 +198,7 @@ Un autre contexte l'utilise ainsi :
 // 1. Son module importe IdentityModule
 @Module({ imports: [IdentityModule], ... })
 
-// 2. Son handler injecte le contrat, importé via l'alias
+// 2. Son use case injecte le contrat, importé via l'alias
 import { UserQueries } from "@identity";
 
 constructor(private readonly users: UserQueries) {}
@@ -207,7 +207,7 @@ constructor(private readonly users: UserQueries) {}
 Points importants :
 
 - **On expose un contrat (`UserDto`), jamais l'entité `User`.** Sinon les autres contextes dépendent du domaine interne d'`identity` et chaque modification les casse. Le consommateur traduit ensuite ce DTO dans son propre concept (ex : un `Customer` dans `booking`).
-- **On expose une abstract class (`UserQueries`), pas un handler de slice.** `identity` peut réorganiser ses slices sans impacter personne.
+- **On expose une abstract class (`UserQueries`), pas un use case de slice.** `identity` peut réorganiser ses slices sans impacter personne.
 - **Côté Nest**, c'est `exports: [UserQueries, AccessTokens]` dans `identity.module.ts` qui rend le contrat injectable ailleurs (`AccessTokens` est requis par `JwtAuthGuard`).
 - **À l'intérieur d'un contexte**, les slices ne passent pas par la `public-api` : elles partagent via `domain/`.
 
@@ -225,7 +225,7 @@ Comptes et connexion vivent dans `identity` : un user est une personne qui a un 
 | `PATCH /me` | connecté | Modifier mon nom ou mon email |
 | `GET /users/:id` | public | Profil public : nom et date d'inscription, sans email |
 
-- **Mot de passe** : haché avec scrypt (sel aléatoire, comparaison en temps constant), jamais renvoyé par l'API. `User.toProfile()` est la seule forme qui sort des handlers.
+- **Mot de passe** : haché avec scrypt (sel aléatoire, comparaison en temps constant), jamais renvoyé par l'API. `User.toProfile()` est la seule forme qui sort des use cases.
 - **Token** : JWT signé (`sub` = id du user), valable 1 jour. Le client l'envoie dans `Authorization: Bearer <token>`.
 - **Login** : même erreur 401 que l'email soit inconnu ou le mot de passe faux, pour ne pas révéler quels emails existent.
 
@@ -311,7 +311,7 @@ Commande  pending_payment ──pay──► paid ──ship──► shipped �
 Un contexte annonce ce qui vient de se passer ; d'autres y réagissent sans que l'émetteur les connaisse.
 
 ```
-PayOrderHandler ── order.pay() ── orders.save() ── events.publish(new OrderPaid(...)) ──► réponse HTTP
+PayOrderUseCase ── order.pay() ── orders.save() ── events.publish(new OrderPaid(...)) ──► réponse HTTP
                                                               │ (plus tard, sans bloquer la requête)
                                                               ▼
                                                  OrderPaidEmailsListener (notifications)
@@ -382,11 +382,11 @@ Toutes les réponses ont la même forme, et `code` vaut toujours le status HTTP.
 
 ### Qui fait quoi
 
-1. **Le succès passe par le controller**, et l'emballage est automatique. Le controller renvoie les données brutes du handler. `ApiResponseInterceptor` (global, `main.ts`) les emballe en `{ code, data, meta }` :
+1. **Le succès passe par le controller**, et l'emballage est automatique. Le controller renvoie les données brutes du use case. `ApiResponseInterceptor` (global, `main.ts`) les emballe en `{ code, data, meta }` :
    - `code` = le vrai status HTTP (200 par défaut, 201 pour un POST, ou celui de `@HttpCode`), donc jamais faux ;
    - `data` = ce que renvoie le controller, `null` s'il ne renvoie rien ;
    - `meta` = rempli seulement si le controller renvoie `withMeta(data, meta)` (`core/http/api-response.ts`), comme `GET /listings` pour la pagination.
-2. **L'erreur passe par le service.** Les handlers et le domaine lancent des `DomainError`. Les controllers ne lancent rien et n'attrapent rien. `ApiExceptionFilter` est le seul endroit qui écrit une réponse d'erreur.
+2. **L'erreur passe par le service.** Les use cases et le domaine lancent des `DomainError`. Les controllers ne lancent rien et n'attrapent rien. `ApiExceptionFilter` est le seul endroit qui écrit une réponse d'erreur.
 3. **Jamais d'erreur de la base dans la réponse.** Tout ce qui n'est ni une `DomainError` ni une erreur HTTP de Nest (erreur SQLite, bug...) devient un 500 `INTERNAL_ERROR` avec un message générique. Le détail (requête, table, valeur) part dans les logs du serveur. Quand une erreur de base a un sens métier (index UNIQUE violé par deux requêtes simultanées), le repository la traduit en `DomainError` avant qu'elle ne remonte (`isUniqueViolation`).
 
 ### `DomainError`
@@ -424,16 +424,16 @@ Erreurs levées par Nest lui-même : `errcode` = nom du status (`NOT_FOUND` pour
 
 Exemple : `deactivate-user` dans `identity`.
 
-1. Créer `features/deactivate-user/` avec `deactivate-user.handler.ts`, `deactivate-user.controller.ts` (et un DTO si besoin).
-2. Mettre la logique métier dans l'entité (`user.deactivate()`), pas dans le handler.
-3. Dans le controller, renvoyer directement `this.handler.execute(...)` : l'intercepteur emballe la réponse. `@HttpCode(HttpStatus.OK)` sur un POST qui ne crée rien. Pas de try/catch : les erreurs remontent seules jusqu'au filtre.
-4. Déclarer le controller et le handler dans `identity.module.ts`.
+1. Créer `features/deactivate-user/` avec `deactivate-user.use-case.ts`, `deactivate-user.controller.ts` (et un DTO si besoin).
+2. Mettre la logique métier dans l'entité (`user.deactivate()`), pas dans le use case.
+3. Dans le controller, renvoyer directement `this.useCase.execute(...)` : l'intercepteur emballe la réponse. `@HttpCode(HttpStatus.OK)` sur un POST qui ne crée rien. Pas de try/catch : les erreurs remontent seules jusqu'au filtre.
+4. Déclarer le controller et le use case dans `identity.module.ts`.
 
 ### Réagir à un événement
 
 Exemple : prévenir le vendeur par email quand il reçoit un avis.
 
-1. Dans `reviews` : créer `public/events/review-created.event.ts` (`class ReviewCreated extends DomainEvent`), l'exporter dans `public-api.ts`, et le publier dans `CreateReviewHandler` **après** `reviews.save()` : `this.events.publish(new ReviewCreated(...))`.
+1. Dans `reviews` : créer `public/events/review-created.event.ts` (`class ReviewCreated extends DomainEvent`), l'exporter dans `public-api.ts`, et le publier dans `CreateReviewUseCase` **après** `reviews.save()` : `this.events.publish(new ReviewCreated(...))`.
 2. Dans `notifications` : créer `features/review-received-email/review-received-email.listener.ts`, qui s'abonne dans `onModuleInit` : `this.events.subscribe(ReviewCreated, (event) => this.handle(event))`.
 3. Déclarer le listener dans `providers` de `notifications.module.ts`.
 
@@ -476,7 +476,7 @@ Les entités et les adapters ne changent pas.
 
 - **ESM** : le projet est en `"type": "module"` (Nest 12 n'est publié qu'en ESM). Les imports relatifs prennent l'extension **`.js`**, même si le fichier source est en `.ts` :
   ```ts
-  import { User } from "./user.entity.js";
+  import { User } from "./user.js";
   ```
 - **Alias** (`tsconfig.json` → `paths`), réécrits en chemins relatifs par `nest build` :
   - `@core/*` → `src/core/*`
@@ -486,7 +486,8 @@ Les entités et les adapters ne changent pas.
   - `@reviews` → `src/context/core-domain/reviews/public-api.ts`
   - `@notifications` → `src/context/supporting/notifications/public-api.ts`
 - **Ports en `abstract class`** plutôt qu'en `interface` : une interface disparaît à la compilation, une abstract class sert directement de token d'injection Nest.
-- **L'entité n'est jamais renvoyée telle quelle** : les handlers renvoient `toPrimitives()` (ou `toProfile()` pour un user, qui exclut le hash du mot de passe).
+- **Nommage entité domaine / entité TypeORM** : l'entité du domaine porte le nom du concept, sans suffixe (`domain/user.ts`, classe `User`, aucun import TypeORM). Le suffixe `.orm-entity.ts` est réservé au modèle de table dans `infrastructure/`. On évite `.entity.ts`, qui désigne une entité TypeORM dans la convention NestJS.
+- **L'entité n'est jamais renvoyée telle quelle** : les use cases renvoient `toPrimitives()` (ou `toProfile()` pour un user, qui exclut le hash du mot de passe).
 - **Prix en centimes** (`priceCents`, `totalCents`) : des entiers, jamais de flottants. 1 190 € = `119000`.
 - **`ValidationPipe` avec `transform: true`** : les DTO sont de vraies instances, et `@Type(() => Number)` convertit les query params (`?page=2`) en nombres.
 - **Pas de `tsx` / `esbuild`** : ils ne génèrent pas les métadonnées de décorateurs (`emitDecoratorMetadata`) dont Nest a besoin pour l'injection. On passe par la CLI Nest.

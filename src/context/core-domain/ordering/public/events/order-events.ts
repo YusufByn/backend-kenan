@@ -1,5 +1,5 @@
 import { DomainEvent } from "@core/events/domain-event.js";
-import type { OrderPrimitives } from "../../domain/order.entity.js";
+import type { OrderPrimitives } from "../../domain/order.js";
 
 /**
  * Base des événements d'une commande : une photo de la commande au moment du fait,

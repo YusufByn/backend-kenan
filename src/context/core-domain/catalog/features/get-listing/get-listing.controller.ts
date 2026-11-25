@@ -1,12 +1,12 @@
 import { Controller, Get, Param, ParseUUIDPipe } from "@nestjs/common";
-import { GetListingHandler } from "./get-listing.handler.js";
+import { GetListingUseCase } from "./get-listing.use-case.js";
 
 @Controller("listings")
 export class GetListingController {
-  constructor(private readonly handler: GetListingHandler) {}
+  constructor(private readonly useCase: GetListingUseCase) {}
 
   @Get(":id")
   handle(@Param("id", ParseUUIDPipe) id: string) {
-    return this.handler.execute(id);
+    return this.useCase.execute(id);
   }
 }

@@ -3,13 +3,13 @@ import { Injectable } from "@nestjs/common";
 import { ListingQueries, ListingReservations, type ListingSummary } from "@catalog";
 import { EventBus } from "@core/events/event-bus.js";
 import { CartRepository } from "../../domain/cart.repository.js";
-import { Order, type OrderPrimitives, type ShippingAddress } from "../../domain/order.entity.js";
+import { Order, type OrderPrimitives, type ShippingAddress } from "../../domain/order.js";
 import { EmptyCartError, ListingUnavailableError } from "../../domain/order.errors.js";
 import { OrderRepository } from "../../domain/order.repository.js";
 import { OrderPlaced } from "../../public/events/order-events.js";
 
 @Injectable()
-export class CheckoutHandler {
+export class CheckoutUseCase {
   constructor(
     private readonly carts: CartRepository,
     private readonly orders: OrderRepository,

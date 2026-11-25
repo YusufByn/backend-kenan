@@ -15,7 +15,7 @@ export type CartItemView = {
 export type CartView = { items: CartItemView[]; totalCents: number; hasUnavailableItems: boolean };
 
 @Injectable()
-export class GetCartHandler {
+export class GetCartUseCase {
   constructor(
     private readonly carts: CartRepository,
     private readonly listings: ListingQueries,

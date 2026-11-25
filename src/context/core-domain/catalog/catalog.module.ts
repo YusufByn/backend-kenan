@@ -3,19 +3,19 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { IdentityModule } from "@identity";
 import { ListingRepository } from "./domain/listing.repository.js";
 import { ArchiveListingController } from "./features/archive-listing/archive-listing.controller.js";
-import { ArchiveListingHandler } from "./features/archive-listing/archive-listing.handler.js";
+import { ArchiveListingUseCase } from "./features/archive-listing/archive-listing.use-case.js";
 import { CreateListingController } from "./features/create-listing/create-listing.controller.js";
-import { CreateListingHandler } from "./features/create-listing/create-listing.handler.js";
+import { CreateListingUseCase } from "./features/create-listing/create-listing.use-case.js";
 import { GetListingController } from "./features/get-listing/get-listing.controller.js";
-import { GetListingHandler } from "./features/get-listing/get-listing.handler.js";
+import { GetListingUseCase } from "./features/get-listing/get-listing.use-case.js";
 import { ListMyListingsController } from "./features/list-my-listings/list-my-listings.controller.js";
-import { ListMyListingsHandler } from "./features/list-my-listings/list-my-listings.handler.js";
+import { ListMyListingsUseCase } from "./features/list-my-listings/list-my-listings.use-case.js";
 import { PublishListingController } from "./features/publish-listing/publish-listing.controller.js";
-import { PublishListingHandler } from "./features/publish-listing/publish-listing.handler.js";
+import { PublishListingUseCase } from "./features/publish-listing/publish-listing.use-case.js";
 import { SearchListingsController } from "./features/search-listings/search-listings.controller.js";
-import { SearchListingsHandler } from "./features/search-listings/search-listings.handler.js";
+import { SearchListingsUseCase } from "./features/search-listings/search-listings.use-case.js";
 import { UpdateListingController } from "./features/update-listing/update-listing.controller.js";
-import { UpdateListingHandler } from "./features/update-listing/update-listing.handler.js";
+import { UpdateListingUseCase } from "./features/update-listing/update-listing.use-case.js";
 import { ListingOrmEntity } from "./infrastructure/listing.orm-entity.js";
 import { TypeOrmListingRepository } from "./infrastructure/typeorm-listing.repository.js";
 import { CatalogListingQueries } from "./public/catalog-listing-queries.js";
@@ -36,13 +36,13 @@ import { ListingReservations } from "./public/listing-reservations.js";
     ListMyListingsController,
   ],
   providers: [
-    SearchListingsHandler,
-    GetListingHandler,
-    CreateListingHandler,
-    UpdateListingHandler,
-    PublishListingHandler,
-    ArchiveListingHandler,
-    ListMyListingsHandler,
+    SearchListingsUseCase,
+    GetListingUseCase,
+    CreateListingUseCase,
+    UpdateListingUseCase,
+    PublishListingUseCase,
+    ArchiveListingUseCase,
+    ListMyListingsUseCase,
 
     { provide: ListingRepository, useClass: TypeOrmListingRepository },
 

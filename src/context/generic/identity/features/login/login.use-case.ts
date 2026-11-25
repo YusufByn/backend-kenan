@@ -1,12 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { AccessTokens } from "../../domain/access-tokens.js";
 import { PasswordHasher } from "../../domain/password-hasher.js";
-import { User } from "../../domain/user.entity.js";
+import { User } from "../../domain/user.js";
 import { InvalidCredentialsError } from "../../domain/user.errors.js";
 import { UserRepository } from "../../domain/user.repository.js";
 
 @Injectable()
-export class LoginHandler {
+export class LoginUseCase {
   constructor(
     private readonly users: UserRepository,
     private readonly hasher: PasswordHasher,

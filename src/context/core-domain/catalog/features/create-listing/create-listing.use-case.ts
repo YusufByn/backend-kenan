@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
-import { Listing, type ListingDetails, type ListingPrimitives } from "../../domain/listing.entity.js";
+import { Listing, type ListingDetails, type ListingPrimitives } from "../../domain/listing.js";
 import { ListingRepository } from "../../domain/listing.repository.js";
 
 type CreateListingInput = Omit<ListingDetails, "description" | "model" | "photoUrls"> &
   Partial<Pick<ListingDetails, "description" | "model" | "photoUrls">>;
 
 @Injectable()
-export class CreateListingHandler {
+export class CreateListingUseCase {
   constructor(private readonly listings: ListingRepository) {}
 
   /** L'annonce est créée en brouillon : elle n'apparaît dans la recherche qu'après /publish. */

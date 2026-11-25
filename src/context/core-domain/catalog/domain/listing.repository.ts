@@ -1,4 +1,4 @@
-import type { Category, Condition, FrameSize, Listing, WheelSize } from "./listing.entity.js";
+import type { Category, Condition, FrameSize, Listing, WheelSize } from "./listing.js";
 import { ListingNotFoundError } from "./listing.errors.js";
 
 export const LISTING_SORTS = ["recent", "price_asc", "price_desc"] as const;

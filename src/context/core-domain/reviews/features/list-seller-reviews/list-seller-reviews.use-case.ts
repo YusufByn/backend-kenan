@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { UserQueries } from "@identity";
-import { averageRating } from "../../domain/review.entity.js";
+import { averageRating } from "../../domain/review.js";
 import { ReviewRepository } from "../../domain/review.repository.js";
 
 export type SellerReviewsView = {
@@ -11,7 +11,7 @@ export type SellerReviewsView = {
 };
 
 @Injectable()
-export class ListSellerReviewsHandler {
+export class ListSellerReviewsUseCase {
   constructor(
     private readonly reviews: ReviewRepository,
     private readonly users: UserQueries,

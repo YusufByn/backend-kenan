@@ -9,7 +9,7 @@ import {
   type Condition,
   type FrameSize,
   type WheelSize,
-} from "../../domain/listing.entity.js";
+} from "../../domain/listing.js";
 import { LISTING_SORTS, type ListingSort } from "../../domain/listing.repository.js";
 
 /** Query params de GET /listings. Les nombres arrivent en texte : @Type les convertit. */

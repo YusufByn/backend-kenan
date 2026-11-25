@@ -1,12 +1,12 @@
 import { Controller, Get, Param, ParseUUIDPipe } from "@nestjs/common";
-import { GetPublicProfileHandler } from "./get-public-profile.handler.js";
+import { GetPublicProfileUseCase } from "./get-public-profile.use-case.js";
 
 @Controller("users")
 export class GetPublicProfileController {
-  constructor(private readonly handler: GetPublicProfileHandler) {}
+  constructor(private readonly useCase: GetPublicProfileUseCase) {}
 
   @Get(":id")
   handle(@Param("id", ParseUUIDPipe) id: string) {
-    return this.handler.execute(id);
+    return this.useCase.execute(id);
   }
 }

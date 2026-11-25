@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { OrderQueries } from "@ordering";
-import { Review, type ReviewPrimitives } from "../../domain/review.entity.js";
+import { Review, type ReviewPrimitives } from "../../domain/review.js";
 import { ReviewableOrderNotFoundError } from "../../domain/review.errors.js";
 import { ReviewRepository } from "../../domain/review.repository.js";
 
 @Injectable()
-export class CreateReviewHandler {
+export class CreateReviewUseCase {
   constructor(
     private readonly reviews: ReviewRepository,
     private readonly orders: OrderQueries,

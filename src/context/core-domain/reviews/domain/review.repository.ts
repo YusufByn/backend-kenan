@@ -1,4 +1,4 @@
-import type { Review } from "./review.entity.js";
+import type { Review } from "./review.js";
 
 /** Port : stockage des avis. */
 export abstract class ReviewRepository {

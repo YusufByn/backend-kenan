@@ -5,7 +5,7 @@ import { UserRepository } from "../../domain/user.repository.js";
 export type PublicProfile = { id: string; name: string; memberSince: Date };
 
 @Injectable()
-export class GetPublicProfileHandler {
+export class GetPublicProfileUseCase {
   constructor(private readonly users: UserRepository) {}
 
   async execute(id: string): Promise<PublicProfile> {

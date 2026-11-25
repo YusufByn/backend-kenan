@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import type { Repository } from "typeorm";
 import { isUniqueViolation } from "@core/database/is-unique-violation.js";
-import { Review } from "../domain/review.entity.js";
+import { Review } from "../domain/review.js";
 import { ReviewAlreadyExistsError } from "../domain/review.errors.js";
 import { ReviewRepository } from "../domain/review.repository.js";
 import { ReviewOrmEntity } from "./review.orm-entity.js";

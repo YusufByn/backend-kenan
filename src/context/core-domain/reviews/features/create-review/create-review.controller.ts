@@ -1,15 +1,15 @@
 import { Body, Controller, Post, UseGuards } from "@nestjs/common";
 import { CurrentUserId, JwtAuthGuard } from "@identity";
 import { CreateReviewDto } from "./create-review.dto.js";
-import { CreateReviewHandler } from "./create-review.handler.js";
+import { CreateReviewUseCase } from "./create-review.use-case.js";
 
 @Controller("reviews")
 @UseGuards(JwtAuthGuard)
 export class CreateReviewController {
-  constructor(private readonly handler: CreateReviewHandler) {}
+  constructor(private readonly useCase: CreateReviewUseCase) {}
 
   @Post()
   handle(@CurrentUserId() userId: string, @Body() dto: CreateReviewDto) {
-    return this.handler.execute(userId, dto);
+    return this.useCase.execute(userId, dto);
   }
 }

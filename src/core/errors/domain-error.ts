@@ -4,7 +4,7 @@ export type DomainErrorKind = "invalid" | "unauthorized" | "forbidden" | "not_fo
 export type FieldErrors = Record<string, string[]>;
 
 /**
- * Base de toutes les erreurs métier, lancées par les services (handlers) et le domaine.
+ * Base de toutes les erreurs métier, lancées par les services (use cases) et le domaine.
  * Pur TypeScript (aucun import Nest) : utilisable depuis n'importe quel domain/.
  * - `kind` : la couche HTTP en déduit le status, sans que le domaine connaisse HTTP.
  * - `errcode` : code stable que le front peut tester (ex. "LISTING_NOT_FOUND"), contrairement au message.

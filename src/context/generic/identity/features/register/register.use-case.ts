@@ -3,12 +3,12 @@ import { Injectable } from "@nestjs/common";
 import { EventBus } from "@core/events/event-bus.js";
 import { AccessTokens } from "../../domain/access-tokens.js";
 import { PasswordHasher } from "../../domain/password-hasher.js";
-import { User, type UserProfile } from "../../domain/user.entity.js";
+import { User, type UserProfile } from "../../domain/user.js";
 import { UserRepository } from "../../domain/user.repository.js";
 import { UserRegistered } from "../../public/events/user-registered.event.js";
 
 @Injectable()
-export class RegisterHandler {
+export class RegisterUseCase {
   constructor(
     private readonly users: UserRepository,
     private readonly hasher: PasswordHasher,

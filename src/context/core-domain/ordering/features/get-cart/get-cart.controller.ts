@@ -1,14 +1,14 @@
 import { Controller, Get, UseGuards } from "@nestjs/common";
 import { CurrentUserId, JwtAuthGuard } from "@identity";
-import { GetCartHandler } from "./get-cart.handler.js";
+import { GetCartUseCase } from "./get-cart.use-case.js";
 
 @Controller("cart")
 @UseGuards(JwtAuthGuard)
 export class GetCartController {
-  constructor(private readonly handler: GetCartHandler) {}
+  constructor(private readonly useCase: GetCartUseCase) {}
 
   @Get()
   handle(@CurrentUserId() userId: string) {
-    return this.handler.execute(userId);
+    return this.useCase.execute(userId);
   }
 }

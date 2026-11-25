@@ -4,7 +4,7 @@ import { CartRepository } from "../../domain/cart.repository.js";
 import { ListingUnavailableError } from "../../domain/order.errors.js";
 
 @Injectable()
-export class AddToCartHandler {
+export class AddToCartUseCase {
   constructor(
     private readonly carts: CartRepository,
     private readonly listings: ListingQueries,

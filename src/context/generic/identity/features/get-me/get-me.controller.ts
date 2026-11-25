@@ -1,15 +1,15 @@
 import { Controller, Get, UseGuards } from "@nestjs/common";
 import { CurrentUserId } from "../../public/current-user-id.decorator.js";
 import { JwtAuthGuard } from "../../public/jwt-auth.guard.js";
-import { GetMeHandler } from "./get-me.handler.js";
+import { GetMeUseCase } from "./get-me.use-case.js";
 
 @Controller("me")
 @UseGuards(JwtAuthGuard)
 export class GetMeController {
-  constructor(private readonly handler: GetMeHandler) {}
+  constructor(private readonly useCase: GetMeUseCase) {}
 
   @Get()
   handle(@CurrentUserId() userId: string) {
-    return this.handler.execute(userId);
+    return this.useCase.execute(userId);
   }
 }

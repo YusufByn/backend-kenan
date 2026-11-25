@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import type { Repository } from "typeorm";
 import { isUniqueViolation } from "@core/database/is-unique-violation.js";
-import { User } from "../domain/user.entity.js";
+import { User } from "../domain/user.js";
 import { EmailAlreadyUsedError } from "../domain/user.errors.js";
 import { UserRepository } from "../domain/user.repository.js";
 import { UserOrmEntity } from "./user.orm-entity.js";

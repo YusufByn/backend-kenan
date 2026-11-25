@@ -1,14 +1,15 @@
 import { Injectable } from "@nestjs/common";
+import type { ListingDetails, ListingPrimitives } from "../../domain/listing.js";
 import { ListingRepository } from "../../domain/listing.repository.js";
 
 @Injectable()
-export class ArchiveListingHandler {
+export class UpdateListingUseCase {
   constructor(private readonly listings: ListingRepository) {}
 
-  /** On archive au lieu de supprimer : une annonce peut être référencée par d'anciennes commandes. */
-  async execute(sellerId: string, id: string): Promise<void> {
+  async execute(sellerId: string, id: string, changes: Partial<ListingDetails>): Promise<ListingPrimitives> {
     const listing = await this.listings.getOwnedBy(id, sellerId);
-    listing.archive();
+    listing.update(changes);
     await this.listings.save(listing);
+    return listing.toPrimitives();
   }
 }

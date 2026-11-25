@@ -4,9 +4,9 @@ import { IdentityModule } from "@identity";
 import { OrderingModule } from "@ordering";
 import { ReviewRepository } from "./domain/review.repository.js";
 import { CreateReviewController } from "./features/create-review/create-review.controller.js";
-import { CreateReviewHandler } from "./features/create-review/create-review.handler.js";
+import { CreateReviewUseCase } from "./features/create-review/create-review.use-case.js";
 import { ListSellerReviewsController } from "./features/list-seller-reviews/list-seller-reviews.controller.js";
-import { ListSellerReviewsHandler } from "./features/list-seller-reviews/list-seller-reviews.handler.js";
+import { ListSellerReviewsUseCase } from "./features/list-seller-reviews/list-seller-reviews.use-case.js";
 import { ReviewOrmEntity } from "./infrastructure/review.orm-entity.js";
 import { TypeOrmReviewRepository } from "./infrastructure/typeorm-review.repository.js";
 
@@ -18,8 +18,8 @@ import { TypeOrmReviewRepository } from "./infrastructure/typeorm-review.reposit
   ],
   controllers: [CreateReviewController, ListSellerReviewsController],
   providers: [
-    CreateReviewHandler,
-    ListSellerReviewsHandler,
+    CreateReviewUseCase,
+    ListSellerReviewsUseCase,
     { provide: ReviewRepository, useClass: TypeOrmReviewRepository },
   ],
 })

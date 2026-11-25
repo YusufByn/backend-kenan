@@ -1,12 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { ListingReservations } from "@catalog";
 import { EventBus } from "@core/events/event-bus.js";
-import type { OrderPrimitives } from "../../domain/order.entity.js";
+import type { OrderPrimitives } from "../../domain/order.js";
 import { OrderRepository } from "../../domain/order.repository.js";
-import { OrderDelivered } from "../../public/events/order-events.js";
+import { OrderCancelled } from "../../public/events/order-events.js";
 
 @Injectable()
-export class ConfirmDeliveryHandler {
+export class CancelOrderUseCase {
   constructor(
     private readonly orders: OrderRepository,
     private readonly reservations: ListingReservations,
@@ -15,13 +15,13 @@ export class ConfirmDeliveryHandler {
 
   async execute(userId: string, orderId: string): Promise<OrderPrimitives> {
     const order = await this.orders.getVisibleTo(orderId, userId);
-    order.confirmDelivery(userId, new Date());
-    // Les annonces passent en "sold" avant d'enregistrer la commande : si ça échoue, la commande reste "shipped".
-    await this.reservations.markSold(order.listingIds);
+    order.cancel(userId, new Date());
+    // Les vélos sont remis en vente.
+    await this.reservations.release(order.listingIds);
     await this.orders.save(order);
 
     const saved = order.toPrimitives();
-    this.events.publish(new OrderDelivered(saved));
+    this.events.publish(new OrderCancelled(saved, userId));
     return saved;
   }
 }

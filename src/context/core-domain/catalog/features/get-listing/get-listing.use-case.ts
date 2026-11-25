@@ -1,13 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { UserQueries } from "@identity";
-import type { ListingPrimitives } from "../../domain/listing.entity.js";
+import type { ListingPrimitives } from "../../domain/listing.js";
 import { ListingNotFoundError } from "../../domain/listing.errors.js";
 import { ListingRepository } from "../../domain/listing.repository.js";
 
 export type ListingDetailView = ListingPrimitives & { seller: { id: string; name: string | null } };
 
 @Injectable()
-export class GetListingHandler {
+export class GetListingUseCase {
   constructor(
     private readonly listings: ListingRepository,
     private readonly users: UserQueries,

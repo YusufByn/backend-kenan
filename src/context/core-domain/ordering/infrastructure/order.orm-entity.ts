@@ -1,5 +1,5 @@
 import { Column, Entity, Index, PrimaryColumn } from "typeorm";
-import type { OrderStatus, ShippingAddress } from "../domain/order.entity.js";
+import type { OrderStatus, ShippingAddress } from "../domain/order.js";
 
 // Les deux tables sont dans le même fichier et sans relation TypeORM :
 // le repository charge les lignes lui-même, ce qui évite les imports circulaires entre entités en ESM.

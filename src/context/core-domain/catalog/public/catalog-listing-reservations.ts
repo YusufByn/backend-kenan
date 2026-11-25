@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { Listing } from "../domain/listing.entity.js";
+import type { Listing } from "../domain/listing.js";
 import { ListingConcurrentUpdateError, ListingNotAvailableError } from "../domain/listing.errors.js";
 import { ListingRepository } from "../domain/listing.repository.js";
 import { ListingReservations } from "./listing-reservations.js";

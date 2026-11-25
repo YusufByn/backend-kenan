@@ -1,5 +1,5 @@
 import { Column, Entity, Index, PrimaryColumn } from "typeorm";
-import type { Category, Condition, FrameSize, ListingStatus, WheelSize } from "../domain/listing.entity.js";
+import type { Category, Condition, FrameSize, ListingStatus, WheelSize } from "../domain/listing.js";
 
 /** Table "listings". Les enums sont stockés en texte : la validation est faite par le domaine. */
 @Entity("listings")

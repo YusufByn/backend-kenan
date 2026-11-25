@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { In, type Repository } from "typeorm";
-import { Listing } from "../domain/listing.entity.js";
+import { Listing } from "../domain/listing.js";
 import { ListingConcurrentUpdateError } from "../domain/listing.errors.js";
 import { ListingRepository, type ListingSearch, type ListingSort } from "../domain/listing.repository.js";
 import { ListingOrmEntity } from "./listing.orm-entity.js";

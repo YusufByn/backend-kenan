@@ -8,7 +8,7 @@ import {
   type Condition,
   type FrameSize,
   type WheelSize,
-} from "../../domain/listing.entity.js";
+} from "../../domain/listing.js";
 
 /** Forme de la requête. Les règles (prix, année, URLs des photos) sont dans l'entité Listing. */
 export class CreateListingDto {

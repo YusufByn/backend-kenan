@@ -1,4 +1,4 @@
-import { User } from "./user.entity.js";
+import { User } from "./user.js";
 import { EmailAlreadyUsedError, UserNotFoundError } from "./user.errors.js";
 
 /**

@@ -1,4 +1,4 @@
-import type { Order } from "./order.entity.js";
+import type { Order } from "./order.js";
 import { OrderNotFoundError } from "./order.errors.js";
 
 /** Port : stockage des commandes. */

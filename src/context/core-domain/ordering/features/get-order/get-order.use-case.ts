@@ -1,9 +1,9 @@
 import { Injectable } from "@nestjs/common";
-import type { OrderPrimitives } from "../../domain/order.entity.js";
+import type { OrderPrimitives } from "../../domain/order.js";
 import { OrderRepository } from "../../domain/order.repository.js";
 
 @Injectable()
-export class GetOrderHandler {
+export class GetOrderUseCase {
   constructor(private readonly orders: OrderRepository) {}
 
   async execute(userId: string, orderId: string): Promise<OrderPrimitives> {

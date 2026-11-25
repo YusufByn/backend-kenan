@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { CartRepository } from "../../domain/cart.repository.js";
 
 @Injectable()
-export class RemoveFromCartHandler {
+export class RemoveFromCartUseCase {
   constructor(private readonly carts: CartRepository) {}
 
   /** Retirer une annonce absente du panier ne fait rien. */

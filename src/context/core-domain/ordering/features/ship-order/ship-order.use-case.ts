@@ -1,11 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import { EventBus } from "@core/events/event-bus.js";
-import type { OrderPrimitives } from "../../domain/order.entity.js";
+import type { OrderPrimitives } from "../../domain/order.js";
 import { OrderRepository } from "../../domain/order.repository.js";
 import { OrderShipped } from "../../public/events/order-events.js";
 
 @Injectable()
-export class ShipOrderHandler {
+export class ShipOrderUseCase {
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,

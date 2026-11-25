@@ -8,7 +8,7 @@ import {
   type Condition,
   type FrameSize,
   type WheelSize,
-} from "../../domain/listing.entity.js";
+} from "../../domain/listing.js";
 
 /** Tous les champs sont optionnels : seuls ceux envoyés sont modifiés. */
 export class UpdateListingDto {
