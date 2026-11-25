@@ -14,9 +14,9 @@
     "paths": {
       "@core/*": ["./src/core/*"],
       "@identity": ["./src/context/generic/identity/public-api.ts"],
-      "@catalog": ["./src/context/domain/catalog/public-api.ts"],
-      "@ordering": ["./src/context/domain/ordering/public-api.ts"],
-      "@reviews": ["./src/context/domain/reviews/public-api.ts"],
+      "@catalog": ["./src/context/core-domain/catalog/public-api.ts"],
+      "@ordering": ["./src/context/core-domain/ordering/public-api.ts"],
+      "@reviews": ["./src/context/core-domain/reviews/public-api.ts"],
       "@notifications": ["./src/context/supporting/notifications/public-api.ts"]
     }
   },

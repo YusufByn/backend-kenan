@@ -19,7 +19,7 @@ src/
 ├── app.controller.ts           GET / → "API OK"
 │
 ├── context/                    Les bounded contexts, rangés par catégorie de sous-domaine
-│   ├── domain/                 Ce qui différencie le produit : la marketplace de vélos
+│   ├── core-domain/            Ce qui différencie le produit : la marketplace de vélos
 │   │   ├── catalog/            ← annonces, recherche            (@catalog)
 │   │   ├── ordering/           ← panier, commandes              (@ordering)
 │   │   └── reviews/            ← avis sur les vendeurs          (@reviews)
@@ -42,14 +42,14 @@ src/
 
 ### Les catégories de sous-domaines
 
-- **`context/domain/`** : le cœur métier (*core domain* en DDD), là où l'app crée de la valeur. C'est là qu'on investit le plus (domaine riche, tests).
+- **`context/core-domain/`** : le cœur métier (*core domain* en DDD), là où l'app crée de la valeur. C'est là qu'on investit le plus (domaine riche, tests).
 - **`context/supporting/`** : sert le cœur métier mais ne le différencie pas (notifications, back-office...).
 - **`context/generic/`** : problèmes résolus de la même façon partout (identité, auth, paiement). On y reste léger et on s'appuie sur des librairies.
 - **`core/`** : code technique sans propriétaire métier (le socle de l'app). **Interdit d'y mettre un concept métier** (`User`, `Booking`...) : si plusieurs contextes en ont besoin, il passe par la `public-api` du contexte qui le possède. Même règle pour les DTO : un DTO de requête reste dans sa slice, un DTO public (`UserDto`) reste dans le `public/` de son contexte. Seuls des DTO purement techniques (pagination générique...) ont leur place ici.
 
-> À ne pas confondre : `context/domain/` est la **catégorie** des contextes cœur de métier ; `domain/` à l'intérieur d'un contexte est la **couche** métier (entités, ports).
+> À ne pas confondre : `context/core-domain/` (le cœur métier, au sens DDD) et `src/core/` (le socle technique, sans aucun métier). Et `domain/` à l'intérieur d'un contexte est la **couche** métier de ce contexte (entités, ports).
 
-Un contexte peut changer de catégorie avec le temps (un `supporting` qui devient cœur de métier) : on déplace le dossier (ex : `context/supporting/x` → `context/domain/x`) et on met à jour son alias dans `tsconfig.json`.
+Un contexte peut changer de catégorie avec le temps (un `supporting` qui devient cœur de métier) : on déplace le dossier (ex : `context/supporting/x` → `context/core-domain/x`) et on met à jour son alias dans `tsconfig.json`.
 
 ---
 
@@ -151,19 +151,19 @@ Changer de stockage = écrire un nouvel adapter et changer cette ligne. Le domai
 ## Règles de dépendance
 
 ```
-context/domain ───► context/supporting ───► context/generic ───► core
-       └─────────────────────────────────────► context/generic
+context/core-domain ───► context/supporting ───► context/generic ───► core
+            └──────────────────────────────────────────► context/generic
 
-Événements :  supporting ┄┄écoute┄┄► domain   (notifications écoute ordering)
-              supporting ┄┄écoute┄┄► generic  (notifications écoute UserRegistered d'identity)
+Événements :  supporting ┄┄écoute┄┄► core-domain  (notifications écoute ordering)
+              supporting ┄┄écoute┄┄► generic      (notifications écoute UserRegistered d'identity)
 ```
 
 1. **Le domaine est pur** : aucun import de Nest, d'infrastructure ou d'un autre contexte.
 2. **Une slice n'importe jamais une autre slice.** Si deux slices partagent une logique, elle va dans `domain/`.
    *Exemple : `get-me`, `update-me` et `get-public-profile` ont besoin de « user introuvable → erreur » → c'est `UserRepository.getById()`. `register` et `update-me` vérifient qu'un email est libre → `UserRepository.assertEmailAvailable()`.*
 3. **Un contexte n'importe jamais l'intérieur d'un autre contexte**, seulement sa `public-api` (via son alias).
-4. **`context/generic/` ne connaît jamais `context/domain/`**, ni ses appels ni ses événements.
-5. **Pour réagir à ce qui se passe ailleurs, on écoute un événement** au lieu de se faire appeler. Celui qui écoute importe les événements de l'émetteur (via sa `public-api`), l'émetteur ne sait pas qu'il est écouté. C'est ce qui permet à `context/supporting/notifications` de réagir à `context/domain/ordering` sans que `ordering` dépende de lui.
+4. **`context/generic/` ne connaît jamais `context/core-domain/`**, ni ses appels ni ses événements.
+5. **Pour réagir à ce qui se passe ailleurs, on écoute un événement** au lieu de se faire appeler. Celui qui écoute importe les événements de l'émetteur (via sa `public-api`), l'émetteur ne sait pas qu'il est écouté. C'est ce qui permet à `context/supporting/notifications` de réagir à `context/core-domain/ordering` sans que `ordering` dépende de lui.
 6. **`core/` ne contient que du technique** et ne dépend d'aucun contexte.
 
 > Ces règles ne sont pas encore vérifiées automatiquement (voir [Limites actuelles](#limites-actuelles)).
@@ -246,7 +246,7 @@ Le module du contexte doit importer `IdentityModule`.
 
 ---
 
-## La marketplace (context/domain/)
+## La marketplace (context/core-domain/)
 
 Des particuliers vendent leurs vélos, d'autres les achètent. Une annonce = un vélo (pas de stock).
 
@@ -439,12 +439,12 @@ Exemple : prévenir le vendeur par email quand il reçoit un avis.
 
 ### Ajouter un contexte
 
-Exemple : `context/domain/booking/`.
+Exemple : `context/core-domain/booking/`.
 
-1. Créer `context/domain/booking/` avec `domain/`, `features/`, `infrastructure/`, `booking.module.ts` et `public-api.ts`.
+1. Créer `context/core-domain/booking/` avec `domain/`, `features/`, `infrastructure/`, `booking.module.ts` et `public-api.ts`.
 2. Ajouter l'alias dans `tsconfig.json` :
    ```json
-   "@booking": ["./src/context/domain/booking/public-api.ts"]
+   "@booking": ["./src/context/core-domain/booking/public-api.ts"]
    ```
 3. Importer `BookingModule` (via `@booking`) dans `app.module.ts`.
 4. S'il a besoin d'`identity` (lire un user ou protéger des routes) : importer `IdentityModule` dans `booking.module.ts`, puis utiliser `UserQueries`, `JwtAuthGuard` et `CurrentUserId` depuis `@identity`.
@@ -481,9 +481,9 @@ Les entités et les adapters ne changent pas.
 - **Alias** (`tsconfig.json` → `paths`), réécrits en chemins relatifs par `nest build` :
   - `@core/*` → `src/core/*`
   - `@identity` → `src/context/generic/identity/public-api.ts`
-  - `@catalog` → `src/context/domain/catalog/public-api.ts`
-  - `@ordering` → `src/context/domain/ordering/public-api.ts`
-  - `@reviews` → `src/context/domain/reviews/public-api.ts`
+  - `@catalog` → `src/context/core-domain/catalog/public-api.ts`
+  - `@ordering` → `src/context/core-domain/ordering/public-api.ts`
+  - `@reviews` → `src/context/core-domain/reviews/public-api.ts`
   - `@notifications` → `src/context/supporting/notifications/public-api.ts`
 - **Ports en `abstract class`** plutôt qu'en `interface` : une interface disparaît à la compilation, une abstract class sert directement de token d'injection Nest.
 - **L'entité n'est jamais renvoyée telle quelle** : les handlers renvoient `toPrimitives()` (ou `toProfile()` pour un user, qui exclut le hash du mot de passe).
