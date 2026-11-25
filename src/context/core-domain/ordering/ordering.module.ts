@@ -4,6 +4,10 @@ import { CatalogModule } from "@catalog";
 import { IdentityModule } from "@identity";
 import { CartRepository } from "./domain/cart.repository.js";
 import { OrderRepository } from "./domain/order.repository.js";
+import { AdminGetOrderController } from "./features/admin-get-order/admin-get-order.controller.js";
+import { AdminGetOrderUseCase } from "./features/admin-get-order/admin-get-order.use-case.js";
+import { AdminListOrdersController } from "./features/admin-list-orders/admin-list-orders.controller.js";
+import { AdminListOrdersUseCase } from "./features/admin-list-orders/admin-list-orders.use-case.js";
 import { AddToCartController } from "./features/add-to-cart/add-to-cart.controller.js";
 import { AddToCartUseCase } from "./features/add-to-cart/add-to-cart.use-case.js";
 import { CancelOrderController } from "./features/cancel-order/cancel-order.controller.js";
@@ -36,7 +40,7 @@ import { OrderingOrderQueries } from "./public/ordering-order-queries.js";
 @Module({
   imports: [
     TypeOrmModule.forFeature([CartItemOrmEntity, OrderOrmEntity, OrderLineOrmEntity]),
-    IdentityModule, // JwtAuthGuard
+    IdentityModule, // JwtAuthGuard, RequireRole
     CatalogModule, // ListingQueries, ListingReservations
   ],
   controllers: [
@@ -51,6 +55,8 @@ import { OrderingOrderQueries } from "./public/ordering-order-queries.js";
     ConfirmDeliveryController,
     CancelOrderController,
     ListMySalesController,
+    AdminListOrdersController,
+    AdminGetOrderController,
   ],
   providers: [
     GetCartUseCase,
@@ -64,6 +70,8 @@ import { OrderingOrderQueries } from "./public/ordering-order-queries.js";
     ConfirmDeliveryUseCase,
     CancelOrderUseCase,
     ListMySalesUseCase,
+    AdminListOrdersUseCase,
+    AdminGetOrderUseCase,
 
     { provide: CartRepository, useClass: TypeOrmCartRepository },
     { provide: OrderRepository, useClass: TypeOrmOrderRepository },

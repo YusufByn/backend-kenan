@@ -11,4 +11,9 @@ export const env = {
   databasePath: process.env.DATABASE_PATH ?? "db.sqlite",
   jwtSecret: process.env.JWT_SECRET ?? "dev-secret-a-changer",
   jwtExpiresIn: (process.env.JWT_EXPIRES_IN ?? "1d") as JwtSignOptions["expiresIn"],
+  /** Comptes toujours admin. "a@x.com, b@y.com" → ["a@x.com", "b@y.com"]. */
+  adminEmails: (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean),
 };

@@ -17,6 +17,8 @@ export class LoginUseCase {
     const user = await this.users.findByEmail(User.normalizeEmail(input.email));
     const passwordMatches = user ? await this.hasher.verify(input.password, user.passwordHash) : false;
     if (!user || !passwordMatches) throw new InvalidCredentialsError();
+    // Après la vérification du mot de passe : on ne révèle la suspension qu'au titulaire du compte.
+    user.assertActive();
 
     return { accessToken: await this.tokens.issue(user.id) };
   }

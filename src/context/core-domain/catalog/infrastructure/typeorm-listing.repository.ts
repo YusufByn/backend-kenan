@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { In, type Repository } from "typeorm";
+import { escapeLike } from "@core/database/escape-like.js";
 import { Listing } from "../domain/listing.js";
 import { ListingConcurrentUpdateError } from "../domain/listing.errors.js";
 import { ListingRepository, type ListingSearch, type ListingSort } from "../domain/listing.repository.js";
@@ -11,9 +12,6 @@ const ORDER_BY: Record<ListingSort, [column: string, direction: "ASC" | "DESC"]>
   price_asc: ["l.priceCents", "ASC"],
   price_desc: ["l.priceCents", "DESC"],
 };
-
-/** Échappe % et _ pour qu'une recherche "50%" cherche bien le texte "50%". */
-const escapeLike = (text: string) => text.replace(/[\\%_]/g, (char) => `\\${char}`);
 
 @Injectable()
 export class TypeOrmListingRepository extends ListingRepository {

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { EventBus } from "@core/events/event-bus.js";
 import { AccessTokens } from "../../domain/access-tokens.js";
+import { AdminEmails } from "../../domain/admin-emails.js";
 import { PasswordHasher } from "../../domain/password-hasher.js";
 import { User, type UserProfile } from "../../domain/user.js";
 import { UserRepository } from "../../domain/user.repository.js";
@@ -14,6 +15,7 @@ export class RegisterUseCase {
     private readonly hasher: PasswordHasher,
     private readonly tokens: AccessTokens,
     private readonly events: EventBus,
+    private readonly adminEmails: AdminEmails,
   ) {}
 
   async execute(input: { name: string; email: string; password: string }): Promise<{ user: UserProfile; accessToken: string }> {
@@ -25,6 +27,7 @@ export class RegisterUseCase {
       name: input.name,
       email: input.email,
       passwordHash: await this.hasher.hash(input.password),
+      role: this.adminEmails.includes(User.normalizeEmail(input.email)) ? "admin" : "user",
       createdAt: new Date(),
     });
     await this.users.save(user);

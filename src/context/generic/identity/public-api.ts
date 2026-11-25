@@ -11,5 +11,10 @@ export type { UserDto } from "./public/user.dto.js";
 export { JwtAuthGuard } from "./public/jwt-auth.guard.js";
 export { CurrentUserId } from "./public/current-user-id.decorator.js";
 
+// Réserver une route à un rôle minimum (inclut JwtAuthGuard) :
+//   @RequireRole("moderator")  +  @CurrentUserId() userId: string
+export { RequireRole } from "./public/require-role.decorator.js";
+export type { Role } from "./domain/role.js";
+
 // Événements publiés par identity (à écouter avec EventBus.subscribe).
 export { UserRegistered } from "./public/events/user-registered.event.js";

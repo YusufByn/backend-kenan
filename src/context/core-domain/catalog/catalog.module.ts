@@ -2,6 +2,8 @@ import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { IdentityModule } from "@identity";
 import { ListingRepository } from "./domain/listing.repository.js";
+import { AdminArchiveListingController } from "./features/admin-archive-listing/admin-archive-listing.controller.js";
+import { AdminArchiveListingUseCase } from "./features/admin-archive-listing/admin-archive-listing.use-case.js";
 import { ArchiveListingController } from "./features/archive-listing/archive-listing.controller.js";
 import { ArchiveListingUseCase } from "./features/archive-listing/archive-listing.use-case.js";
 import { CreateListingController } from "./features/create-listing/create-listing.controller.js";
@@ -24,7 +26,7 @@ import { ListingQueries } from "./public/listing-queries.js";
 import { ListingReservations } from "./public/listing-reservations.js";
 
 @Module({
-  // IdentityModule : JwtAuthGuard (routes protégées) et UserQueries (nom du vendeur).
+  // IdentityModule : JwtAuthGuard / RequireRole (routes protégées) et UserQueries (nom du vendeur).
   imports: [TypeOrmModule.forFeature([ListingOrmEntity]), IdentityModule],
   controllers: [
     SearchListingsController,
@@ -34,6 +36,7 @@ import { ListingReservations } from "./public/listing-reservations.js";
     PublishListingController,
     ArchiveListingController,
     ListMyListingsController,
+    AdminArchiveListingController,
   ],
   providers: [
     SearchListingsUseCase,
@@ -43,6 +46,7 @@ import { ListingReservations } from "./public/listing-reservations.js";
     PublishListingUseCase,
     ArchiveListingUseCase,
     ListMyListingsUseCase,
+    AdminArchiveListingUseCase,
 
     { provide: ListingRepository, useClass: TypeOrmListingRepository },
 

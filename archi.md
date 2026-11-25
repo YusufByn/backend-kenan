@@ -30,7 +30,7 @@ src/
 │
 └── core/                       Technique uniquement, zéro concept métier  (@core/*)
     ├── config/env.ts           ← lit le .env
-    ├── database/is-unique-violation.ts
+    ├── database/                ← is-unique-violation.ts, escape-like.ts
     ├── errors/domain-error.ts  ← base des erreurs (kind, errcode, fields)
     ├── events/                 ← bus d'événements : DomainEvent, EventBus (port), InMemoryEventBus
     └── http/
@@ -60,11 +60,13 @@ Exemple avec `context/generic/identity/` :
 ```
 identity/
 ├── domain/                              Le métier. Aucun import Nest.
-│   ├── user.ts                          Entité User + ses règles (nom requis, format email, mot de passe ≥ 8)
-│   ├── user.errors.ts                   InvalidUserError, UserNotFoundError, EmailAlreadyUsedError, InvalidCredentialsError
-│   ├── user.repository.ts               Port : stocker / retrouver des users (+ getById, assertEmailAvailable)
+│   ├── user.ts                          Entité User + ses règles (nom requis, format email, mot de passe ≥ 8, rôle, suspension)
+│   ├── role.ts                          Rôles user < moderator < admin, hasAtLeastRole / outranks
+│   ├── user.errors.ts                   InvalidUserError, UserNotFoundError, AccountSuspendedError, InsufficientRoleError...
+│   ├── user.repository.ts               Port : stocker / retrouver / rechercher des users (+ getById, assertEmailAvailable)
 │   ├── password-hasher.ts               Port : hacher / vérifier un mot de passe
-│   └── access-tokens.ts                 Port : délivrer / vérifier le jeton de connexion
+│   ├── access-tokens.ts                 Port : délivrer / vérifier le jeton de connexion
+│   └── admin-emails.ts                  Port : les emails toujours admin (ADMIN_EMAILS)
 │
 ├── features/                            Une slice = une action métier
 │   ├── register/
@@ -74,19 +76,26 @@ identity/
 │   ├── login/
 │   ├── get-me/
 │   ├── update-me/
-│   └── get-public-profile/
+│   ├── get-public-profile/
+│   ├── admin-list-users/                GET /admin/users (moderator+)
+│   ├── admin-change-user-role/          PATCH /admin/users/:id/role (admin)
+│   ├── admin-suspend-user/              POST /admin/users/:id/suspend (moderator+)
+│   ├── admin-reactivate-user/           POST /admin/users/:id/reactivate (moderator+)
+│   └── bootstrap-admins/                Au démarrage : promeut les comptes ADMIN_EMAILS (pas de route)
 │
 ├── infrastructure/                      Adapters : implémentent les ports
 │   ├── user.orm-entity.ts               Modèle de la table "users" (TypeORM), distinct de l'entité du domaine
 │   ├── typeorm-user.repository.ts       UserRepository avec TypeORM
 │   ├── scrypt-password-hasher.ts        PasswordHasher avec scrypt (inclus dans Node)
-│   └── jwt-access-tokens.ts             AccessTokens avec JWT (@nestjs/jwt)
+│   ├── jwt-access-tokens.ts             AccessTokens avec JWT (@nestjs/jwt)
+│   └── env-admin-emails.ts              AdminEmails lu dans le .env
 │
 ├── public/                              Ce que le contexte expose aux autres
 │   ├── user-queries.ts                  Contrat (abstract class)
 │   ├── user.dto.ts                      Forme publique d'un user
 │   ├── identity-user-queries.ts         Implémentation du contrat (privée)
-│   ├── jwt-auth.guard.ts                Protège une route (Authorization: Bearer)
+│   ├── jwt-auth.guard.ts                Protège une route (Authorization: Bearer), relit le user en base
+│   ├── require-role.decorator.ts        @RequireRole("moderator") + RoleGuard
 │   └── current-user-id.decorator.ts     @CurrentUserId() : l'id du user connecté
 │
 ├── identity.module.ts                   Câblage Nest : port → adapter, exports
@@ -190,6 +199,8 @@ export { UserQueries } from "./public/user-queries.js";
 export type { UserDto } from "./public/user.dto.js";
 export { JwtAuthGuard } from "./public/jwt-auth.guard.js";
 export { CurrentUserId } from "./public/current-user-id.decorator.js";
+export { RequireRole } from "./public/require-role.decorator.js";
+export type { Role } from "./domain/role.js";
 ```
 
 Un autre contexte l'utilise ainsi :
@@ -208,7 +219,7 @@ Points importants :
 
 - **On expose un contrat (`UserDto`), jamais l'entité `User`.** Sinon les autres contextes dépendent du domaine interne d'`identity` et chaque modification les casse. Le consommateur traduit ensuite ce DTO dans son propre concept (ex : un `Customer` dans `booking`).
 - **On expose une abstract class (`UserQueries`), pas un use case de slice.** `identity` peut réorganiser ses slices sans impacter personne.
-- **Côté Nest**, c'est `exports: [UserQueries, AccessTokens]` dans `identity.module.ts` qui rend le contrat injectable ailleurs (`AccessTokens` est requis par `JwtAuthGuard`).
+- **Côté Nest**, c'est `exports: [UserQueries, AccessTokens, UserRepository]` dans `identity.module.ts` qui rend le contrat injectable ailleurs (`AccessTokens` et `UserRepository` sont requis par `JwtAuthGuard` ; ils ne sont pas dans `public-api.ts`, donc aucun autre contexte ne peut les importer).
 - **À l'intérieur d'un contexte**, les slices ne passent pas par la `public-api` : elles partagent via `domain/`.
 
 ---
@@ -224,10 +235,15 @@ Comptes et connexion vivent dans `identity` : un user est une personne qui a un 
 | `GET /me` | connecté | Mon profil |
 | `PATCH /me` | connecté | Modifier mon nom ou mon email |
 | `GET /users/:id` | public | Profil public : nom et date d'inscription, sans email |
+| `GET /admin/users` | moderator+ | Comptes avec rôle et suspension. Filtres : `q` (nom, email), `role`, `status` (`active`, `suspended`), `page`, `limit` (≤ 50) |
+| `PATCH /admin/users/:id/role` | admin | `{ role }`, pas sur son propre compte |
+| `POST /admin/users/:id/suspend` | moderator+ | Seulement un compte de rôle inférieur au sien |
+| `POST /admin/users/:id/reactivate` | moderator+ | Mêmes règles |
 
 - **Mot de passe** : haché avec scrypt (sel aléatoire, comparaison en temps constant), jamais renvoyé par l'API. `User.toProfile()` est la seule forme qui sort des use cases.
 - **Token** : JWT signé (`sub` = id du user), valable 1 jour. Le client l'envoie dans `Authorization: Bearer <token>`.
-- **Login** : même erreur 401 que l'email soit inconnu ou le mot de passe faux, pour ne pas révéler quels emails existent.
+- **Login** : même erreur 401 que l'email soit inconnu ou le mot de passe faux, pour ne pas révéler quels emails existent. La suspension (403) n'est signalée qu'après un mot de passe correct.
+- **Le user est relu en base à chaque requête protégée** (`JwtAuthGuard`) : un compte suspendu est bloqué tout de suite (403 `ACCOUNT_SUSPENDED`, même avec un token encore valide), et un changement de rôle s'applique sans se reconnecter. Le token ne contient que l'id.
 
 Protéger une route, dans n'importe quel contexte :
 
@@ -243,6 +259,33 @@ export class CreateListingController {
 ```
 
 Le module du contexte doit importer `IdentityModule`.
+
+### Rôles
+
+Rôles **de plateforme**, du moins au plus puissant. Chacun a les droits des précédents. Tout compte est `user` à l'inscription.
+
+| Rôle | Peut |
+|---|---|
+| `user` | Utiliser la marketplace (acheter, vendre, noter) |
+| `moderator` | + lister les comptes, suspendre / réactiver un `user`, retirer une annonce, consulter toutes les commandes |
+| `admin` | + changer le rôle de n'importe quel compte (sauf le sien), suspendre / réactiver un `moderator` |
+
+- **Acheteur et vendeur ne sont pas des rôles** : ce sont des relations (qui possède l'annonce, qui a passé la commande), vérifiées par chaque contexte dans son domaine (`listing.isOwnedBy`, `order.isVisibleTo`).
+- **On ne modère que plus bas que soi** (`outranks` dans `domain/role.ts`) et jamais son propre compte : un moderator ne suspend pas un autre moderator, un admin ne peut pas se retirer ses droits par erreur.
+- **Premier admin** : les emails listés dans `ADMIN_EMAILS` (`.env`) sont admin dès l'inscription, et promus (et réactivés) à chaque démarrage s'ils existent déjà. Un admin rétrogradé via l'API mais encore dans `ADMIN_EMAILS` redevient admin au prochain démarrage : le `.env` fait foi.
+- **Routes de back-office sous `/admin/...`**, chacune dans le contexte qui possède la donnée (`/admin/users` dans identity, `/admin/listings` dans catalog, `/admin/orders` dans ordering).
+
+Réserver une route à un rôle, dans n'importe quel contexte :
+
+```ts
+import { CurrentUserId, RequireRole } from "@identity";
+
+@Controller("admin/listings")
+@RequireRole("moderator")                // moderator et admin. Inclut JwtAuthGuard : ne pas l'ajouter en plus
+export class AdminArchiveListingController { ... }
+```
+
+401 sans token valide, 403 `ACCOUNT_SUSPENDED` si le compte est suspendu, 403 `INSUFFICIENT_ROLE` si le rôle ne suffit pas.
 
 ---
 
@@ -295,10 +338,13 @@ Commande  pending_payment ──pay──► paid ──ship──► shipped �
 | ordering | GET | `/me/sales` | connecté, mes ventes |
 | reviews | POST | `/reviews` | acheteur d'une commande livrée, `{ orderId, rating, comment? }` |
 | reviews | GET | `/sellers/:id/reviews` | public, avec moyenne |
+| catalog | DELETE | `/admin/listings/:id` | moderator+, archive l'annonce de n'importe quel vendeur (si `draft` ou `published`) |
+| ordering | GET | `/admin/orders` | moderator+, toutes les commandes. Filtres : `status`, `buyerId`, `sellerId`, `page`, `limit` (≤ 50) |
+| ordering | GET | `/admin/orders/:id` | moderator+, lecture seule |
 
 ### Points de conception
 
-- **Ce qui n'appartient pas au user renvoie 404**, pas 403 : on ne révèle pas qu'une annonce ou commande existe. Le 403 est réservé au cas où l'on voit la commande mais sans le bon rôle (le vendeur qui essaie de payer).
+- **Ce qui n'appartient pas au user renvoie 404**, pas 403 : on ne révèle pas qu'une annonce ou commande existe. Le 403 est réservé au cas où l'on voit la commande mais sans le bon rôle (le vendeur qui essaie de payer), et aux routes `/admin/...` quand le rôle de plateforme ne suffit pas. La modération ne passe pas par les routes normales : un moderator qui appelle `GET /orders/:id` sur une commande qui n'est pas la sienne reçoit 404, il doit utiliser `GET /admin/orders/:id`.
 - **Checkout tout ou rien** : les commandes sont validées avant de réserver ; si une seule annonce n'est plus disponible, rien n'est créé (409) ; si l'enregistrement des commandes échoue, les annonces sont libérées.
 - **Deux acheteurs en même temps** : `TypeOrmListingRepository.saveAll` fait un `UPDATE ... WHERE status = <statut lu>`. Si le statut a changé entre-temps, la transaction est annulée et le second acheteur reçoit 409.
 - **Titre et prix copiés dans `order_lines`** au checkout : modifier une annonce ensuite ne change pas la commande.
@@ -408,9 +454,9 @@ export class EmailAlreadyUsedError extends DomainError {
 |---|---|---|
 | `invalid` | 400 | `VALIDATION_FAILED` (DTO), `USER_INVALID`, `LISTING_INVALID`, `ORDER_INVALID`, `REVIEW_INVALID`, `CART_EMPTY`, `CANNOT_BUY_OWN_LISTING` |
 | `unauthorized` | 401 | `TOKEN_MISSING`, `TOKEN_INVALID`, `INVALID_CREDENTIALS` |
-| `forbidden` | 403 | `ORDER_ACTION_FORBIDDEN` |
+| `forbidden` | 403 | `ORDER_ACTION_FORBIDDEN`, `ACCOUNT_SUSPENDED`, `INSUFFICIENT_ROLE`, `USER_ACTION_FORBIDDEN` |
 | `not_found` | 404 | `USER_NOT_FOUND`, `LISTING_NOT_FOUND`, `ORDER_NOT_FOUND` |
-| `conflict` | 409 | `EMAIL_ALREADY_USED`, `LISTING_NOT_AVAILABLE`, `LISTING_INVALID_STATUS`, `LISTING_CONCURRENT_UPDATE`, `CART_LISTING_UNAVAILABLE`, `ORDER_INVALID_STATUS`, `REVIEW_ORDER_NOT_DELIVERED`, `REVIEW_ALREADY_EXISTS` |
+| `conflict` | 409 | `EMAIL_ALREADY_USED`, `LISTING_NOT_AVAILABLE`, `LISTING_INVALID_STATUS`, `LISTING_CONCURRENT_UPDATE`, `CART_LISTING_UNAVAILABLE`, `ORDER_INVALID_STATUS`, `REVIEW_ORDER_NOT_DELIVERED`, `REVIEW_ALREADY_EXISTS`, `USER_ALREADY_SUSPENDED`, `USER_NOT_SUSPENDED` |
 
 Les erreurs du DTO deviennent une `RequestValidationError` (`exceptionFactory` du `ValidationPipe` dans `main.ts`). Leurs messages sont ceux de class-validator, en anglais.
 
@@ -506,11 +552,14 @@ Les entités et les adapters ne changent pas.
 ## Limites actuelles
 
 - **`synchronize: true`** : pas de migrations. À remplacer par des migrations TypeORM avant une vraie mise en prod.
-- **Configuration dans `.env`** (chargé par `src/core/config/env.ts` avec `process.loadEnvFile`, sans paquet) : `PORT`, `DATABASE_PATH`, `JWT_SECRET`, `JWT_EXPIRES_IN`. Modèle dans `.env.example`. Sans `.env`, des valeurs par défaut de dev sont utilisées. Pas de refresh token.
+- **Configuration dans `.env`** (chargé par `src/core/config/env.ts` avec `process.loadEnvFile`, sans paquet) : `PORT`, `DATABASE_PATH`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `ADMIN_EMAILS`. Modèle dans `.env.example`. Sans `.env`, des valeurs par défaut de dev sont utilisées. Pas de refresh token.
 - **Règles de dépendance non vérifiées** : rien n'empêche encore un import interdit. À mettre en place avec `eslint-plugin-boundaries` ou `dependency-cruiser`.
 - **Bus en mémoire** : si le serveur s'arrête entre l'enregistrement et l'exécution d'un listener, l'email est perdu, et un listener en échec n'est pas relancé. La solution propre (« outbox » : enregistrer l'événement en base dans la même transaction, puis le traiter) n'est pas en place.
 - **Pas de rattrapage entre appels directs** : `ordering` appelle `ListingReservations`. Si une étape échoue après une autre (ex : annonces marquées vendues mais commande non enregistrée), rien ne corrige automatiquement, sauf au checkout où les annonces sont libérées.
 - **Emails affichés, pas envoyés** : `ConsoleMailer` seulement.
 - **Commandes non payées sans expiration** : une commande jamais payée bloque ses annonces jusqu'à ce que l'acheteur ou le vendeur l'annule.
 - **Photos = URLs** : pas d'upload de fichiers.
+- **`ADMIN_EMAILS` fait confiance à l'email, qui n'est pas vérifié** : quiconque s'inscrit le premier avec une adresse listée devient admin. Créer ces comptes soi-même avant de les ajouter au `.env`. À durcir avec une vérification d'email.
+- **Suspension sans effet sur les annonces** : les annonces publiées d'un vendeur suspendu restent visibles et achetables. À traiter en publiant un événement `UserSuspended` qu'écouterait catalog.
+- **Pas d'historique de modération** : on ne garde ni qui a suspendu / changé un rôle / retiré une annonce, ni pourquoi, et le user concerné n'est pas prévenu par email.
 - **Pas de tests automatisés** : le parcours complet a été vérifié à la main avec de vraies requêtes.
