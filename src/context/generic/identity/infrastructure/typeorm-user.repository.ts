@@ -41,7 +41,11 @@ export class TypeOrmUserRepository extends UserRepository {
       const like = `%${escapeLike(criteria.q.trim().toLowerCase())}%`;
       query.andWhere("(LOWER(u.name) LIKE :like ESCAPE '\\' OR u.email LIKE :like ESCAPE '\\')", { like });
     }
-    if (criteria.role) query.andWhere("u.role = :role", { role: criteria.role });
+    // Test de bits fait par SQLite : (masque & flags) = flags, comme hasAll().
+    // Passé en BigInt, pas en texte : pour SQLite, l'entier 4 n'est jamais égal au texte '4'.
+    if (criteria.permissions) {
+      query.andWhere("(u.permissions & :flags) = :flags", { flags: criteria.permissions });
+    }
     if (criteria.status === "active") query.andWhere("u.suspendedAt IS NULL");
     if (criteria.status === "suspended") query.andWhere("u.suspendedAt IS NOT NULL");
 

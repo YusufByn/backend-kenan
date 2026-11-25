@@ -1,10 +1,10 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
-import { CurrentUserId, JwtAuthGuard } from "@identity";
+import { Body, Controller, Post } from "@nestjs/common";
+import { CurrentUserId, RequirePermission } from "@identity";
 import { CreateReviewDto } from "./create-review.dto.js";
 import { CreateReviewUseCase } from "./create-review.use-case.js";
 
 @Controller("reviews")
-@UseGuards(JwtAuthGuard)
+@RequirePermission("REVIEW_CREATE")
 export class CreateReviewController {
   constructor(private readonly useCase: CreateReviewUseCase) {}
 

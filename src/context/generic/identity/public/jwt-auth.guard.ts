@@ -1,12 +1,11 @@
 import { Injectable, type CanActivate, type ExecutionContext } from "@nestjs/common";
 import type { Request } from "express";
 import { AccessTokens } from "../domain/access-tokens.js";
-import type { Role } from "../domain/role.js";
 import { InvalidTokenError, MissingTokenError } from "../domain/user.errors.js";
 import { UserRepository } from "../domain/user.repository.js";
 
-/** Requête après passage du guard : l'id et le rôle du user connecté y sont attachés. */
-export type AuthenticatedRequest = Request & { userId?: string; userRole?: Role };
+/** Requête après passage du guard : l'id et le masque de permissions du user connecté y sont attachés. */
+export type AuthenticatedRequest = Request & { userId?: string; userPermissions?: bigint };
 
 /**
  * Protège une route : exige un en-tête "Authorization: Bearer <token>" valide.
@@ -15,7 +14,7 @@ export type AuthenticatedRequest = Request & { userId?: string; userRole?: Role 
  * Leur module doit importer IdentityModule.
  *
  * Le user est relu en base à chaque requête : un compte supprimé (401) ou suspendu (403)
- * est bloqué tout de suite, et le rôle est toujours celui d'aujourd'hui, pas celui de la connexion.
+ * est bloqué tout de suite, et les permissions sont celles d'aujourd'hui, pas celles de la connexion.
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -37,7 +36,7 @@ export class JwtAuthGuard implements CanActivate {
     user.assertActive();
 
     request.userId = user.id;
-    request.userRole = user.role;
+    request.userPermissions = user.permissions;
     return true;
   }
 }

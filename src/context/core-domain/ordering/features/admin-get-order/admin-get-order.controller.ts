@@ -1,9 +1,9 @@
 import { Controller, Get, Param, ParseUUIDPipe } from "@nestjs/common";
-import { RequireRole } from "@identity";
+import { RequirePermission } from "@identity";
 import { AdminGetOrderUseCase } from "./admin-get-order.use-case.js";
 
 @Controller("admin/orders")
-@RequireRole("moderator")
+@RequirePermission("ORDERS_READ_ALL")
 export class AdminGetOrderController {
   constructor(private readonly useCase: AdminGetOrderUseCase) {}
 

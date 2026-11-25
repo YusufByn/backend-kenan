@@ -1,10 +1,10 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from "@nestjs/common";
-import { CurrentUserId, JwtAuthGuard } from "@identity";
+import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
+import { CurrentUserId, RequirePermission } from "@identity";
 import { AddToCartDto } from "./add-to-cart.dto.js";
 import { AddToCartUseCase } from "./add-to-cart.use-case.js";
 
 @Controller("cart/items")
-@UseGuards(JwtAuthGuard)
+@RequirePermission("ORDER_PLACE")
 export class AddToCartController {
   constructor(private readonly useCase: AddToCartUseCase) {}
 

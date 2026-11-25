@@ -61,17 +61,17 @@ export class AccountSuspendedError extends DomainError {
   }
 }
 
-/** Connecté, mais le rôle ne suffit pas pour cette route. */
-export class InsufficientRoleError extends DomainError {
+/** Connecté, mais il manque au moins une permission pour cette route. */
+export class InsufficientPermissionsError extends DomainError {
   readonly kind = "forbidden";
-  readonly errcode = "INSUFFICIENT_ROLE";
+  readonly errcode = "INSUFFICIENT_PERMISSIONS";
 
-  constructor(required: string) {
-    super(`Cette action demande le rôle "${required}" ou supérieur`);
+  constructor(missing: string[]) {
+    super(`Permission manquante : ${missing.join(", ")}`);
   }
 }
 
-/** Action de modération refusée sur ce user précis (soi-même, rôle égal ou supérieur). */
+/** Action refusée sur ce user précis (soi-même, droits égaux ou supérieurs, bit qu'on ne possède pas). */
 export class UserActionForbiddenError extends DomainError {
   readonly kind = "forbidden";
   readonly errcode = "USER_ACTION_FORBIDDEN";

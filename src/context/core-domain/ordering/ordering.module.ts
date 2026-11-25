@@ -40,7 +40,7 @@ import { OrderingOrderQueries } from "./public/ordering-order-queries.js";
 @Module({
   imports: [
     TypeOrmModule.forFeature([CartItemOrmEntity, OrderOrmEntity, OrderLineOrmEntity]),
-    IdentityModule, // JwtAuthGuard, RequireRole
+    IdentityModule, // JwtAuthGuard, RequirePermission
     CatalogModule, // ListingQueries, ListingReservations
   ],
   controllers: [

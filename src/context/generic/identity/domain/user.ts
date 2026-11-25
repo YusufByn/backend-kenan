@@ -1,4 +1,6 @@
-import { hasAtLeastRole, isRole, outranks, type Role } from "./role.js";
+import { add, hasAll, isStrictSubset, remove } from "@core/bitmask/bitmask.js";
+import { ALL_PERMISSIONS, PERMISSIONS, toNames, type PermissionName } from "./permissions.js";
+import { roleOf, type Role } from "./role.js";
 import {
   AccountSuspendedError,
   InvalidUserError,
@@ -12,7 +14,8 @@ export type UserPrimitives = {
   name: string;
   email: string;
   passwordHash: string;
-  role: Role;
+  /** Masque de permissions (voir permissions.ts). */
+  permissions: bigint;
   /** null = compte actif. */
   suspendedAt: Date | null;
   createdAt: Date;
@@ -23,12 +26,17 @@ export type UserProfile = {
   id: string;
   name: string;
   email: string;
-  role: Role;
+  /** Le rôle si le masque correspond exactement à un preset, sinon null (permissions personnalisées). */
+  role: Role | null;
+  permissions: PermissionName[];
   createdAt: Date;
 };
 
-/** Ce que la modération voit d'un compte : le profil + son état. */
-export type UserAdminView = UserProfile & { suspendedAt: Date | null };
+/**
+ * Ce que la modération voit d'un compte : le profil + le masque brut + son état.
+ * Le masque est une chaîne : JSON ne sait pas sérialiser un BigInt.
+ */
+export type UserAdminView = UserProfile & { permissionsMask: string; suspendedAt: Date | null };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN_LENGTH = 8;
@@ -39,7 +47,7 @@ export class User {
     private name: string,
     private email: string,
     readonly passwordHash: string,
-    private currentRole: Role,
+    private mask: bigint,
     private suspendedAt: Date | null,
     readonly createdAt: Date,
   ) {}
@@ -51,7 +59,7 @@ export class User {
       User.checkName(props.name),
       User.checkEmail(props.email),
       props.passwordHash,
-      User.checkRole(props.role),
+      props.permissions,
       null,
       props.createdAt,
     );
@@ -59,7 +67,7 @@ export class User {
 
   /** Reconstruit un user déjà validé, lu depuis le stockage. */
   static restore(props: UserPrimitives): User {
-    return new User(props.id, props.name, props.email, props.passwordHash, props.role, props.suspendedAt, props.createdAt);
+    return new User(props.id, props.name, props.email, props.passwordHash, props.permissions, props.suspendedAt, props.createdAt);
   }
 
   /** Vérifié sur le mot de passe en clair, avant hachage (le domaine ne voit jamais que le hash ensuite). */
@@ -78,12 +86,17 @@ export class User {
     return this.email;
   }
 
-  get role(): Role {
-    return this.currentRole;
+  get permissions(): bigint {
+    return this.mask;
   }
 
   get isSuspended(): boolean {
     return this.suspendedAt !== null;
+  }
+
+  /** A toutes les permissions de `flags`. */
+  can(flags: bigint): boolean {
+    return hasAll(this.mask, flags);
   }
 
   /** Appelé à la connexion et à chaque requête authentifiée. */
@@ -99,13 +112,25 @@ export class User {
     this.email = email;
   }
 
-  /** Seul un admin change les rôles, et jamais le sien (il ne peut pas se retirer ses propres droits par erreur). */
-  changeRole(actor: User, role: Role): void {
-    if (!hasAtLeastRole(actor.role, "admin")) {
-      throw new UserActionForbiddenError("Seul un admin peut changer le rôle d'un compte");
+  /**
+   * Remplace ou ajuste le masque. Règles :
+   * - il faut USERS_MANAGE_PERMISSIONS, et jamais sur son propre compte ;
+   * - on ne touche qu'aux bits qu'on possède soi-même : un moderator à qui on aurait donné
+   *   USERS_MANAGE_PERMISSIONS ne peut pas se fabriquer un admin.
+   */
+  changePermissions(actor: User, change: { set: bigint } | { grant: bigint; revoke: bigint }): void {
+    if (!actor.can(PERMISSIONS.USERS_MANAGE_PERMISSIONS)) {
+      throw new UserActionForbiddenError("Il faut la permission USERS_MANAGE_PERMISSIONS");
     }
-    if (actor.id === this.id) throw new UserActionForbiddenError("Tu ne peux pas changer ton propre rôle");
-    this.currentRole = User.checkRole(role);
+    if (actor.id === this.id) throw new UserActionForbiddenError("Tu ne peux pas changer tes propres permissions");
+
+    const next = "set" in change ? change.set : remove(add(this.mask, change.grant), change.revoke);
+    const changedBits = this.mask ^ next; // XOR : les bits qui passent de 0 à 1 ou de 1 à 0
+    if (!actor.can(changedBits)) {
+      const missing = toNames(remove(changedBits, actor.mask));
+      throw new UserActionForbiddenError(`Tu ne peux pas donner ou retirer une permission que tu n'as pas : ${missing.join(", ")}`);
+    }
+    this.mask = next;
   }
 
   suspend(actor: User, now: Date): void {
@@ -121,33 +146,54 @@ export class User {
   }
 
   /**
-   * Compte listé dans ADMIN_EMAILS : admin et actif, quoi qu'il arrive.
+   * Compte listé dans ADMIN_EMAILS : toutes les permissions et actif, quoi qu'il arrive
+   * (y compris les permissions ajoutées au catalogue depuis le dernier démarrage).
    * Renvoie false si rien n'a changé (évite une écriture inutile au démarrage).
    */
   grantBootstrapAdmin(): boolean {
-    if (this.currentRole === "admin" && !this.isSuspended) return false;
-    this.currentRole = "admin";
+    if (this.mask === ALL_PERMISSIONS && !this.isSuspended) return false;
+    this.mask = ALL_PERMISSIONS;
     this.suspendedAt = null;
     return true;
   }
 
   toProfile(): UserProfile {
-    return { id: this.id, name: this.name, email: this.email, role: this.currentRole, createdAt: this.createdAt };
+    return {
+      id: this.id,
+      name: this.name,
+      email: this.email,
+      role: roleOf(this.mask),
+      permissions: toNames(this.mask),
+      createdAt: this.createdAt,
+    };
   }
 
   toAdminView(): UserAdminView {
-    return { ...this.toProfile(), suspendedAt: this.suspendedAt };
+    return { ...this.toProfile(), permissionsMask: this.mask.toString(), suspendedAt: this.suspendedAt };
   }
 
   toPrimitives(): UserPrimitives {
-    return { ...this.toAdminView(), passwordHash: this.passwordHash };
+    return {
+      id: this.id,
+      name: this.name,
+      email: this.email,
+      passwordHash: this.passwordHash,
+      permissions: this.mask,
+      suspendedAt: this.suspendedAt,
+      createdAt: this.createdAt,
+    };
   }
 
-  /** On ne modère que plus bas que soi : un moderator suspend des users, un admin suspend aussi des moderators. */
+  /**
+   * On ne modère que quelqu'un qui a strictement moins de droits que soi : toutes ses permissions
+   * sont aussi les nôtres, et on en a au moins une de plus. Un moderator ne suspend donc ni un
+   * autre moderator (masques égaux) ni un admin ; un admin suspend un moderator.
+   */
   private assertModeratableBy(actor: User): void {
+    if (!actor.can(PERMISSIONS.USERS_SUSPEND)) throw new UserActionForbiddenError("Il faut la permission USERS_SUSPEND");
     if (actor.id === this.id) throw new UserActionForbiddenError("Tu ne peux pas modérer ton propre compte");
-    if (!outranks(actor.role, this.currentRole)) {
-      throw new UserActionForbiddenError("Tu ne peux modérer que des comptes de rôle inférieur au tien");
+    if (!isStrictSubset(this.mask, actor.mask)) {
+      throw new UserActionForbiddenError("Tu ne peux modérer que des comptes qui ont moins de permissions que toi");
     }
   }
 
@@ -161,10 +207,5 @@ export class User {
     const normalized = User.normalizeEmail(email);
     if (!EMAIL_PATTERN.test(normalized)) throw new InvalidUserError("Email invalide", "email");
     return normalized;
-  }
-
-  private static checkRole(role: string): Role {
-    if (!isRole(role)) throw new InvalidUserError("Rôle inconnu", "role");
-    return role;
   }
 }

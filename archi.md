@@ -31,6 +31,7 @@ src/
 └── core/                       Technique uniquement, zéro concept métier  (@core/*)
     ├── config/env.ts           ← lit le .env
     ├── database/                ← is-unique-violation.ts, escape-like.ts
+    ├── bitmask/bitmask.ts       ← add, remove, hasAny, hasAll, isStrictSubset sur des BigInt
     ├── errors/domain-error.ts  ← base des erreurs (kind, errcode, fields)
     ├── events/                 ← bus d'événements : DomainEvent, EventBus (port), InMemoryEventBus
     └── http/
@@ -60,8 +61,9 @@ Exemple avec `context/generic/identity/` :
 ```
 identity/
 ├── domain/                              Le métier. Aucun import Nest.
-│   ├── user.ts                          Entité User + ses règles (nom requis, format email, mot de passe ≥ 8, rôle, suspension)
-│   ├── role.ts                          Rôles user < moderator < admin, hasAtLeastRole / outranks
+│   ├── user.ts                          Entité User + ses règles (nom requis, format email, mot de passe ≥ 8, permissions, suspension)
+│   ├── permissions.ts                   Catalogue des permissions : 1 permission = 1 bit (source unique)
+│   ├── role.ts                          Presets de masques : user, moderator, admin
 │   ├── user.errors.ts                   InvalidUserError, UserNotFoundError, AccountSuspendedError, InsufficientRoleError...
 │   ├── user.repository.ts               Port : stocker / retrouver / rechercher des users (+ getById, assertEmailAvailable)
 │   ├── password-hasher.ts               Port : hacher / vérifier un mot de passe
@@ -77,10 +79,11 @@ identity/
 │   ├── get-me/
 │   ├── update-me/
 │   ├── get-public-profile/
-│   ├── admin-list-users/                GET /admin/users (moderator+)
-│   ├── admin-change-user-role/          PATCH /admin/users/:id/role (admin)
-│   ├── admin-suspend-user/              POST /admin/users/:id/suspend (moderator+)
-│   ├── admin-reactivate-user/           POST /admin/users/:id/reactivate (moderator+)
+│   ├── admin-list-users/                GET /admin/users
+│   ├── admin-change-user-role/          PATCH /admin/users/:id/role (applique un preset)
+│   ├── admin-change-user-permissions/   PATCH /admin/users/:id/permissions (grant / revoke)
+│   ├── admin-suspend-user/              POST /admin/users/:id/suspend
+│   ├── admin-reactivate-user/           POST /admin/users/:id/reactivate
 │   └── bootstrap-admins/                Au démarrage : promeut les comptes ADMIN_EMAILS (pas de route)
 │
 ├── infrastructure/                      Adapters : implémentent les ports
@@ -95,7 +98,7 @@ identity/
 │   ├── user.dto.ts                      Forme publique d'un user
 │   ├── identity-user-queries.ts         Implémentation du contrat (privée)
 │   ├── jwt-auth.guard.ts                Protège une route (Authorization: Bearer), relit le user en base
-│   ├── require-role.decorator.ts        @RequireRole("moderator") + RoleGuard
+│   ├── require-permission.decorator.ts  @RequirePermission("ORDER_PLACE") + PermissionGuard
 │   └── current-user-id.decorator.ts     @CurrentUserId() : l'id du user connecté
 │
 ├── identity.module.ts                   Câblage Nest : port → adapter, exports
@@ -106,7 +109,7 @@ identity/
 
 | Couche | Responsabilité | Peut dépendre de |
 |---|---|---|
-| `domain/` | Entités, règles métier, ports, erreurs métier | `core/errors` uniquement |
+| `domain/` | Entités, règles métier, ports, erreurs métier | `core/errors`, `core/bitmask` uniquement |
 | `features/*/` use case | Orchestrer un cas d'usage | `domain/` |
 | `features/*/` controller + DTO | Traduire HTTP ↔ use case, valider la forme de la requête | son use case, Nest |
 | `infrastructure/` | Implémenter les ports (stockage, services externes) | `domain/`, Nest, librairies |
@@ -199,8 +202,8 @@ export { UserQueries } from "./public/user-queries.js";
 export type { UserDto } from "./public/user.dto.js";
 export { JwtAuthGuard } from "./public/jwt-auth.guard.js";
 export { CurrentUserId } from "./public/current-user-id.decorator.js";
-export { RequireRole } from "./public/require-role.decorator.js";
-export type { Role } from "./domain/role.js";
+export { RequirePermission } from "./public/require-permission.decorator.js";
+export type { PermissionName } from "./domain/permissions.js";
 ```
 
 Un autre contexte l'utilise ainsi :
@@ -235,15 +238,16 @@ Comptes et connexion vivent dans `identity` : un user est une personne qui a un 
 | `GET /me` | connecté | Mon profil |
 | `PATCH /me` | connecté | Modifier mon nom ou mon email |
 | `GET /users/:id` | public | Profil public : nom et date d'inscription, sans email |
-| `GET /admin/users` | moderator+ | Comptes avec rôle et suspension. Filtres : `q` (nom, email), `role`, `status` (`active`, `suspended`), `page`, `limit` (≤ 50) |
-| `PATCH /admin/users/:id/role` | admin | `{ role }`, pas sur son propre compte |
-| `POST /admin/users/:id/suspend` | moderator+ | Seulement un compte de rôle inférieur au sien |
-| `POST /admin/users/:id/reactivate` | moderator+ | Mêmes règles |
+| `GET /admin/users` | `USERS_READ` | Comptes avec permissions, masque et suspension. Filtres : `q` (nom, email), `permission` (répétable : `?permission=A&permission=B` = a A **et** B), `status` (`active`, `suspended`), `page`, `limit` (≤ 50) |
+| `PATCH /admin/users/:id/role` | `USERS_MANAGE_PERMISSIONS` | `{ role }` : remplace tout le masque par un preset |
+| `PATCH /admin/users/:id/permissions` | `USERS_MANAGE_PERMISSIONS` | `{ grant?: [...], revoke?: [...] }` : ajoute / retire des permissions une par une |
+| `POST /admin/users/:id/suspend` | `USERS_SUSPEND` | Seulement un compte qui a strictement moins de permissions que soi |
+| `POST /admin/users/:id/reactivate` | `USERS_SUSPEND` | Mêmes règles |
 
 - **Mot de passe** : haché avec scrypt (sel aléatoire, comparaison en temps constant), jamais renvoyé par l'API. `User.toProfile()` est la seule forme qui sort des use cases.
 - **Token** : JWT signé (`sub` = id du user), valable 1 jour. Le client l'envoie dans `Authorization: Bearer <token>`.
 - **Login** : même erreur 401 que l'email soit inconnu ou le mot de passe faux, pour ne pas révéler quels emails existent. La suspension (403) n'est signalée qu'après un mot de passe correct.
-- **Le user est relu en base à chaque requête protégée** (`JwtAuthGuard`) : un compte suspendu est bloqué tout de suite (403 `ACCOUNT_SUSPENDED`, même avec un token encore valide), et un changement de rôle s'applique sans se reconnecter. Le token ne contient que l'id.
+- **Le user est relu en base à chaque requête protégée** (`JwtAuthGuard`) : un compte suspendu est bloqué tout de suite (403 `ACCOUNT_SUSPENDED`, même avec un token encore valide), et un changement de permissions s'applique sans se reconnecter. Le token ne contient que l'id.
 
 Protéger une route, dans n'importe quel contexte :
 
@@ -260,32 +264,65 @@ export class CreateListingController {
 
 Le module du contexte doit importer `IdentityModule`.
 
-### Rôles
+### Permissions (bitmask)
 
-Rôles **de plateforme**, du moins au plus puissant. Chacun a les droits des précédents. Tout compte est `user` à l'inscription.
+Chaque user a **un masque de permissions** : un entier (BIGINT en base, `bigint` en JS) où **chaque bit = une permission**. Vérifier un droit = un AND et une comparaison, sans jointure ni table `role_permissions`.
 
-| Rôle | Peut |
-|---|---|
-| `user` | Utiliser la marketplace (acheter, vendre, noter) |
-| `moderator` | + lister les comptes, suspendre / réactiver un `user`, retirer une annonce, consulter toutes les commandes |
-| `admin` | + changer le rôle de n'importe quel compte (sauf le sien), suspendre / réactiver un `moderator` |
+```
+bit        20  19  18  17  16  ...  2   1   0
+           │   │   │   │   │        │   │   └─ LISTING_SELL
+           │   │   │   │   │        │   └───── ORDER_PLACE
+           │   │   │   │   │        └───────── REVIEW_CREATE
+           │   │   │   │   └────────────────── USERS_READ
+           │   │   │   └────────────────────── USERS_SUSPEND
+           │   │   └────────────────────────── USERS_MANAGE_PERMISSIONS
+           │   └────────────────────────────── LISTINGS_MODERATE
+           └────────────────────────────────── ORDERS_READ_ALL
 
-- **Acheteur et vendeur ne sont pas des rôles** : ce sont des relations (qui possède l'annonce, qui a passé la commande), vérifiées par chaque contexte dans son domaine (`listing.isOwnedBy`, `order.isVisibleTo`).
-- **On ne modère que plus bas que soi** (`outranks` dans `domain/role.ts`) et jamais son propre compte : un moderator ne suspend pas un autre moderator, un admin ne peut pas se retirer ses droits par erreur.
-- **Premier admin** : les emails listés dans `ADMIN_EMAILS` (`.env`) sont admin dès l'inscription, et promus (et réactivés) à chaque démarrage s'ils existent déjà. Un admin rétrogradé via l'API mais encore dans `ADMIN_EMAILS` redevient admin au prochain démarrage : le `.env` fait foi.
-- **Routes de back-office sous `/admin/...`**, chacune dans le contexte qui possède la donnée (`/admin/users` dans identity, `/admin/listings` dans catalog, `/admin/orders` dans ordering).
-
-Réserver une route à un rôle, dans n'importe quel contexte :
-
-```ts
-import { CurrentUserId, RequireRole } from "@identity";
-
-@Controller("admin/listings")
-@RequireRole("moderator")                // moderator et admin. Inclut JwtAuthGuard : ne pas l'ajouter en plus
-export class AdminArchiveListingController { ... }
+user       0   0   0   0   0        1   1   1   = 7
+moderator  1   1   0   1   1        1   1   1   = 1769479
+admin      1   1   1   1   1        1   1   1   = 2031623
 ```
 
-401 sans token valide, 403 `ACCOUNT_SUSPENDED` si le compte est suspendu, 403 `INSUFFICIENT_ROLE` si le rôle ne suffit pas.
+| Pièce | Où | Rôle |
+|---|---|---|
+| Opérations sur les bits | `core/bitmask/bitmask.ts` | `add` (OR), `remove` (AND NOT), `hasAny`, `hasAll`, `isStrictSubset`. Technique, sans métier |
+| Catalogue | `identity/domain/permissions.ts` | **Source unique** : nom → bit, avec un tableau bit / permission / owner / description |
+| Presets | `identity/domain/role.ts` | `user`, `moderator`, `admin` : de simples masques prêts à l'emploi |
+| Masque du user | colonne `users.permissions` | C'est lui qui est vérifié, jamais le nom du rôle |
+| Check HTTP | `@RequirePermission(...)` (`public/`) | `hasAll(masque du user, masque requis)` |
+
+**Règles du catalogue** (en tête de `permissions.ts`) :
+
+- **Nommer par domaine** : `<DOMAINE>_<ACTION>` (`LISTING_SELL`, `ORDERS_READ_ALL`).
+- **Ne jamais changer ni réutiliser un bit**, même d'une permission supprimée : les masques déjà en base le donneraient à des gens qui ne l'ont jamais reçu. On retire la ligne et on note le bit dans « Bits retirés ».
+- **Bits 0-15 : marketplace, 16+ : modération.** Le driver SQLite renvoie un `number` : sûr jusqu'au bit 52.
+- **L'API parle en noms, la base en bits** : le client envoie `["ORDERS_READ_ALL"]` et reçoit `permissions: [...]` ; seule la vue admin montre le masque brut (`permissionsMask`, en chaîne car JSON ne sait pas sérialiser un BigInt).
+- **Owner** : le contexte qui vérifie la permission. identity connaît le *nom* de `LISTING_SELL` (c'est lui qui gère les droits), mais jamais le code de catalog : la règle « generic ne connaît pas core-domain » tient au niveau du code.
+
+**Rôles = presets.** Un rôle n'est qu'un raccourci pour remplir le masque (`PATCH /admin/users/:id/role`). On peut ensuite ajuster bit par bit (`PATCH .../permissions`) : retirer `LISTING_SELL` à un vendeur douteux sans le suspendre, donner `ORDERS_READ_ALL` à quelqu'un du support sans en faire un moderator. Le profil renvoie `role` quand le masque correspond exactement à un preset, `null` sinon.
+
+**Règles métier** (dans l'entité `User`, en opérations de bits) :
+
+- **Changer des permissions** : il faut `USERS_MANAGE_PERMISSIONS`, jamais sur son propre compte, et **on ne touche qu'aux bits qu'on possède** : `bitsModifiés = avant XOR après`, refusé si `!hasAll(masqueActeur, bitsModifiés)`. Quelqu'un qui gère les droits sans être modérateur ne peut donc pas fabriquer un admin.
+- **Suspendre / réactiver** : il faut `USERS_SUSPEND`, jamais soi-même, et la cible doit avoir **strictement moins de permissions** : `isStrictSubset(cible, acteur)`. Un moderator ne suspend ni un autre moderator (masques égaux) ni quelqu'un qui a un droit qu'il n'a pas.
+- **Acheteur et vendeur ne sont pas des permissions** : `LISTING_SELL` dit si on *peut* vendre, mais « est-ce *mon* annonce ? » reste une relation vérifiée par chaque contexte (`listing.isOwnedBy`, `order.isVisibleTo`).
+- **Premier admin** : les emails listés dans `ADMIN_EMAILS` (`.env`) reçoivent toutes les permissions dès l'inscription, et à chaque démarrage s'ils existent déjà (y compris les permissions ajoutées au catalogue depuis). Un admin rétrogradé via l'API mais encore dans `ADMIN_EMAILS` redevient admin au prochain démarrage : le `.env` fait foi.
+- **Routes de back-office sous `/admin/...`**, chacune dans le contexte qui possède la donnée (`/admin/users` dans identity, `/admin/listings` dans catalog, `/admin/orders` dans ordering).
+
+Réserver une route, dans n'importe quel contexte :
+
+```ts
+import { CurrentUserId, RequirePermission } from "@identity";
+
+@Controller("checkout")
+@RequirePermission("ORDER_PLACE")           // plusieurs noms = il les faut tous. Inclut JwtAuthGuard : ne pas l'ajouter en plus
+export class CheckoutController { ... }
+```
+
+Les noms sont convertis en masque une fois, au chargement du controller. 401 sans token valide, 403 `ACCOUNT_SUSPENDED` si le compte est suspendu, 403 `INSUFFICIENT_PERMISSIONS` (le message liste celles qui manquent) sinon.
+
+**Ajouter une permission** : une ligne dans `PERMISSIONS` avec le prochain bit libre de sa plage, une ligne dans le tableau du commentaire, l'ajouter aux presets concernés dans `role.ts`, puis `@RequirePermission("NOUVELLE")` sur la route. Les users déjà en base ne l'ont pas : voir [Limites actuelles](#limites-actuelles).
 
 ---
 
@@ -297,7 +334,7 @@ Des particuliers vendent leurs vélos, d'autres les achètent. Une annonce = un 
 
 ```
 reviews ──OrderQueries──► ordering ──ListingQueries / ListingReservations──► catalog ──UserQueries──► identity
-   └──────────────────────────┴──────────────────── JwtAuthGuard, CurrentUserId ─────────────────────► identity
+   └──────────────────────────┴──────────── JwtAuthGuard, RequirePermission, CurrentUserId ───────────► identity
 ```
 
 Toujours via la `public-api` du contexte appelé. `notifications` n'apparaît pas ici : personne ne l'appelle, il écoute les événements (voir [Événements](#événements)). `ListingReservations` (reserve / release / markSold) est la **seule** façon de changer le statut d'une annonce depuis un autre contexte ; les règles de transition restent dans l'entité `Listing`.
@@ -320,15 +357,15 @@ Commande  pending_payment ──pay──► paid ──ship──► shipped �
 |---|---|---|---|
 | catalog | GET | `/listings` | public. Filtres : `q`, `category`, `brand`, `frameSize`, `wheelSize`, `condition`, `minPriceCents`, `maxPriceCents`, `sort` (`recent`, `price_asc`, `price_desc`), `page`, `limit` (≤ 50) |
 | catalog | GET | `/listings/:id` | public (brouillons et archivées : 404) |
-| catalog | POST | `/listings` | connecté, crée un brouillon |
-| catalog | PATCH | `/listings/:id` | vendeur, si `draft` ou `published` |
-| catalog | POST | `/listings/:id/publish` | vendeur, exige description + 1 photo |
+| catalog | POST | `/listings` | `LISTING_SELL`, crée un brouillon |
+| catalog | PATCH | `/listings/:id` | `LISTING_SELL` + vendeur, si `draft` ou `published` |
+| catalog | POST | `/listings/:id/publish` | `LISTING_SELL` + vendeur, exige description + 1 photo |
 | catalog | DELETE | `/listings/:id` | vendeur, archive (`data: null`) |
 | catalog | GET | `/me/listings` | connecté, tous statuts |
 | ordering | GET | `/cart` | connecté, prix relus, annonces indisponibles signalées |
-| ordering | POST | `/cart/items` | connecté, `{ listingId }` (`data: null`) |
+| ordering | POST | `/cart/items` | `ORDER_PLACE`, `{ listingId }` (`data: null`) |
 | ordering | DELETE | `/cart/items/:listingId` | connecté (`data: null`) |
-| ordering | POST | `/checkout` | connecté, `{ shippingAddress }`, une commande par vendeur |
+| ordering | POST | `/checkout` | `ORDER_PLACE`, `{ shippingAddress }`, une commande par vendeur |
 | ordering | GET | `/orders` | connecté, mes achats |
 | ordering | GET | `/orders/:id` | acheteur ou vendeur |
 | ordering | POST | `/orders/:id/pay` | acheteur (paiement simulé) |
@@ -336,15 +373,15 @@ Commande  pending_payment ──pay──► paid ──ship──► shipped �
 | ordering | POST | `/orders/:id/confirm-delivery` | acheteur |
 | ordering | POST | `/orders/:id/cancel` | acheteur ou vendeur, avant expédition |
 | ordering | GET | `/me/sales` | connecté, mes ventes |
-| reviews | POST | `/reviews` | acheteur d'une commande livrée, `{ orderId, rating, comment? }` |
+| reviews | POST | `/reviews` | `REVIEW_CREATE` + acheteur d'une commande livrée, `{ orderId, rating, comment? }` |
 | reviews | GET | `/sellers/:id/reviews` | public, avec moyenne |
-| catalog | DELETE | `/admin/listings/:id` | moderator+, archive l'annonce de n'importe quel vendeur (si `draft` ou `published`) |
-| ordering | GET | `/admin/orders` | moderator+, toutes les commandes. Filtres : `status`, `buyerId`, `sellerId`, `page`, `limit` (≤ 50) |
-| ordering | GET | `/admin/orders/:id` | moderator+, lecture seule |
+| catalog | DELETE | `/admin/listings/:id` | `LISTINGS_MODERATE`, archive l'annonce de n'importe quel vendeur (si `draft` ou `published`) |
+| ordering | GET | `/admin/orders` | `ORDERS_READ_ALL`, toutes les commandes. Filtres : `status`, `buyerId`, `sellerId`, `page`, `limit` (≤ 50) |
+| ordering | GET | `/admin/orders/:id` | `ORDERS_READ_ALL`, lecture seule |
 
 ### Points de conception
 
-- **Ce qui n'appartient pas au user renvoie 404**, pas 403 : on ne révèle pas qu'une annonce ou commande existe. Le 403 est réservé au cas où l'on voit la commande mais sans le bon rôle (le vendeur qui essaie de payer), et aux routes `/admin/...` quand le rôle de plateforme ne suffit pas. La modération ne passe pas par les routes normales : un moderator qui appelle `GET /orders/:id` sur une commande qui n'est pas la sienne reçoit 404, il doit utiliser `GET /admin/orders/:id`.
+- **Ce qui n'appartient pas au user renvoie 404**, pas 403 : on ne révèle pas qu'une annonce ou commande existe. Le 403 est réservé au cas où l'on voit la commande mais sans le bon rôle (le vendeur qui essaie de payer), et aux routes protégées par `@RequirePermission` quand une permission manque. Les routes déjà engagées (payer, expédier, annuler, confirmer) ne demandent pas de permission : retirer `ORDER_PLACE` empêche de nouveaux achats, pas de terminer ceux en cours. La modération ne passe pas par les routes normales : un moderator qui appelle `GET /orders/:id` sur une commande qui n'est pas la sienne reçoit 404, il doit utiliser `GET /admin/orders/:id`.
 - **Checkout tout ou rien** : les commandes sont validées avant de réserver ; si une seule annonce n'est plus disponible, rien n'est créé (409) ; si l'enregistrement des commandes échoue, les annonces sont libérées.
 - **Deux acheteurs en même temps** : `TypeOrmListingRepository.saveAll` fait un `UPDATE ... WHERE status = <statut lu>`. Si le statut a changé entre-temps, la transaction est annulée et le second acheteur reçoit 409.
 - **Titre et prix copiés dans `order_lines`** au checkout : modifier une annonce ensuite ne change pas la commande.
@@ -454,7 +491,7 @@ export class EmailAlreadyUsedError extends DomainError {
 |---|---|---|
 | `invalid` | 400 | `VALIDATION_FAILED` (DTO), `USER_INVALID`, `LISTING_INVALID`, `ORDER_INVALID`, `REVIEW_INVALID`, `CART_EMPTY`, `CANNOT_BUY_OWN_LISTING` |
 | `unauthorized` | 401 | `TOKEN_MISSING`, `TOKEN_INVALID`, `INVALID_CREDENTIALS` |
-| `forbidden` | 403 | `ORDER_ACTION_FORBIDDEN`, `ACCOUNT_SUSPENDED`, `INSUFFICIENT_ROLE`, `USER_ACTION_FORBIDDEN` |
+| `forbidden` | 403 | `ORDER_ACTION_FORBIDDEN`, `ACCOUNT_SUSPENDED`, `INSUFFICIENT_PERMISSIONS`, `USER_ACTION_FORBIDDEN` |
 | `not_found` | 404 | `USER_NOT_FOUND`, `LISTING_NOT_FOUND`, `ORDER_NOT_FOUND` |
 | `conflict` | 409 | `EMAIL_ALREADY_USED`, `LISTING_NOT_AVAILABLE`, `LISTING_INVALID_STATUS`, `LISTING_CONCURRENT_UPDATE`, `CART_LISTING_UNAVAILABLE`, `ORDER_INVALID_STATUS`, `REVIEW_ORDER_NOT_DELIVERED`, `REVIEW_ALREADY_EXISTS`, `USER_ALREADY_SUSPENDED`, `USER_NOT_SUSPENDED` |
 
@@ -561,5 +598,7 @@ Les entités et les adapters ne changent pas.
 - **Photos = URLs** : pas d'upload de fichiers.
 - **`ADMIN_EMAILS` fait confiance à l'email, qui n'est pas vérifié** : quiconque s'inscrit le premier avec une adresse listée devient admin. Créer ces comptes soi-même avant de les ajouter au `.env`. À durcir avec une vérification d'email.
 - **Suspension sans effet sur les annonces** : les annonces publiées d'un vendeur suspendu restent visibles et achetables. À traiter en publiant un événement `UserSuspended` qu'écouterait catalog.
-- **Pas d'historique de modération** : on ne garde ni qui a suspendu / changé un rôle / retiré une annonce, ni pourquoi, et le user concerné n'est pas prévenu par email.
+- **Nouvelle permission = masques à migrer** : le masque est enregistré par user, donc une permission ajoutée au catalogue n'arrive pas toute seule chez les users existants (seuls les comptes `ADMIN_EMAILS` la reçoivent au démarrage). Il faut une migration (`UPDATE users SET permissions = permissions | <bit> WHERE ...`).
+- **Masques limités au bit 52** : le driver SQLite renvoie un `number`. Au-delà, activer `safeIntegers` de better-sqlite3.
+- **Pas d'historique de modération** : on ne garde ni qui a suspendu / changé des permissions / retiré une annonce, ni pourquoi, et le user concerné n'est pas prévenu par email.
 - **Pas de tests automatisés** : le parcours complet a été vérifié à la main avec de vraies requêtes.

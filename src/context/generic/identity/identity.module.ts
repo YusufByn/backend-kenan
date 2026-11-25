@@ -6,6 +6,8 @@ import { AccessTokens } from "./domain/access-tokens.js";
 import { AdminEmails } from "./domain/admin-emails.js";
 import { PasswordHasher } from "./domain/password-hasher.js";
 import { UserRepository } from "./domain/user.repository.js";
+import { AdminChangeUserPermissionsController } from "./features/admin-change-user-permissions/admin-change-user-permissions.controller.js";
+import { AdminChangeUserPermissionsUseCase } from "./features/admin-change-user-permissions/admin-change-user-permissions.use-case.js";
 import { AdminChangeUserRoleController } from "./features/admin-change-user-role/admin-change-user-role.controller.js";
 import { AdminChangeUserRoleUseCase } from "./features/admin-change-user-role/admin-change-user-role.use-case.js";
 import { AdminListUsersController } from "./features/admin-list-users/admin-list-users.controller.js";
@@ -46,6 +48,7 @@ import { UserQueries } from "./public/user-queries.js";
     GetPublicProfileController,
     AdminListUsersController,
     AdminChangeUserRoleController,
+    AdminChangeUserPermissionsController,
     AdminSuspendUserController,
     AdminReactivateUserController,
   ],
@@ -57,6 +60,7 @@ import { UserQueries } from "./public/user-queries.js";
     GetPublicProfileUseCase,
     AdminListUsersUseCase,
     AdminChangeUserRoleUseCase,
+    AdminChangeUserPermissionsUseCase,
     AdminSuspendUserUseCase,
     AdminReactivateUserUseCase,
     BootstrapAdminsUseCase,
@@ -71,7 +75,7 @@ import { UserQueries } from "./public/user-queries.js";
     { provide: UserQueries, useClass: IdentityUserQueries },
   ],
   // UserQueries : lire un user depuis un autre contexte.
-  // AccessTokens + UserRepository : requis par JwtAuthGuard (et donc @RequireRole) quand un autre
+  // AccessTokens + UserRepository : requis par JwtAuthGuard (et donc @RequirePermission) quand un autre
   // contexte l'utilise sur ses routes. Exportés côté Nest seulement : ils ne sont pas dans
   // public-api.ts, donc aucun autre contexte ne peut les importer pour s'en servir directement.
   exports: [UserQueries, AccessTokens, UserRepository],

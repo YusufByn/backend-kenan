@@ -26,7 +26,7 @@ import { ListingQueries } from "./public/listing-queries.js";
 import { ListingReservations } from "./public/listing-reservations.js";
 
 @Module({
-  // IdentityModule : JwtAuthGuard / RequireRole (routes protégées) et UserQueries (nom du vendeur).
+  // IdentityModule : JwtAuthGuard / RequirePermission (routes protégées) et UserQueries (nom du vendeur).
   imports: [TypeOrmModule.forFeature([ListingOrmEntity]), IdentityModule],
   controllers: [
     SearchListingsController,

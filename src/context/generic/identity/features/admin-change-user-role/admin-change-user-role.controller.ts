@@ -1,11 +1,11 @@
 import { Body, Controller, Param, ParseUUIDPipe, Patch } from "@nestjs/common";
 import { CurrentUserId } from "../../public/current-user-id.decorator.js";
-import { RequireRole } from "../../public/require-role.decorator.js";
+import { RequirePermission } from "../../public/require-permission.decorator.js";
 import { AdminChangeUserRoleDto } from "./admin-change-user-role.dto.js";
 import { AdminChangeUserRoleUseCase } from "./admin-change-user-role.use-case.js";
 
 @Controller("admin/users")
-@RequireRole("admin")
+@RequirePermission("USERS_MANAGE_PERMISSIONS")
 export class AdminChangeUserRoleController {
   constructor(private readonly useCase: AdminChangeUserRoleUseCase) {}
 

@@ -1,4 +1,3 @@
-import type { Role } from "./role.js";
 import { User } from "./user.js";
 import { EmailAlreadyUsedError, UserNotFoundError } from "./user.errors.js";
 
@@ -9,7 +8,8 @@ export type UserStatus = (typeof USER_STATUSES)[number];
 export type UserSearch = {
   /** Cherche dans le nom et l'email. */
   q?: string;
-  role?: Role;
+  /** Masque : comptes qui ont toutes ces permissions. */
+  permissions?: bigint;
   status?: UserStatus;
   page: number;
   limit: number;

@@ -11,10 +11,11 @@ export type { UserDto } from "./public/user.dto.js";
 export { JwtAuthGuard } from "./public/jwt-auth.guard.js";
 export { CurrentUserId } from "./public/current-user-id.decorator.js";
 
-// Réserver une route à un rôle minimum (inclut JwtAuthGuard) :
-//   @RequireRole("moderator")  +  @CurrentUserId() userId: string
-export { RequireRole } from "./public/require-role.decorator.js";
-export type { Role } from "./domain/role.js";
+// Réserver une route aux users qui ont une ou plusieurs permissions (inclut JwtAuthGuard) :
+//   @RequirePermission("ORDER_PLACE")  +  @CurrentUserId() userId: string
+// Le catalogue des permissions (noms et bits) est dans domain/permissions.ts.
+export { RequirePermission } from "./public/require-permission.decorator.js";
+export type { PermissionName } from "./domain/permissions.js";
 
 // Événements publiés par identity (à écouter avec EventBus.subscribe).
 export { UserRegistered } from "./public/events/user-registered.event.js";

@@ -1,11 +1,11 @@
 import { Controller, Get, Query } from "@nestjs/common";
 import { withMeta } from "@core/http/api-response.js";
-import { RequireRole } from "../../public/require-role.decorator.js";
+import { RequirePermission } from "../../public/require-permission.decorator.js";
 import { AdminListUsersQuery } from "./admin-list-users.query.js";
 import { AdminListUsersUseCase } from "./admin-list-users.use-case.js";
 
 @Controller("admin/users")
-@RequireRole("moderator")
+@RequirePermission("USERS_READ")
 export class AdminListUsersController {
   constructor(private readonly useCase: AdminListUsersUseCase) {}
 

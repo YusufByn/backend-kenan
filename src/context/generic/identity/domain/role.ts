@@ -1,23 +1,23 @@
+import { ALL_PERMISSIONS, PERMISSIONS as P } from "./permissions.js";
+
 /**
- * Rôles de plateforme, du moins au plus puissant. Chaque rôle a tous les droits de ceux qui le précèdent.
- * Acheteur et vendeur ne sont pas des rôles : ce sont des relations (qui possède l'annonce, qui a commandé),
- * vérifiées par chaque contexte.
+ * Un rôle n'est qu'un raccourci : un masque de permissions prêt à l'emploi.
+ * Ce qui est enregistré sur le user et vérifié à chaque requête, c'est le masque, pas le nom du rôle.
+ * On peut ensuite ajouter / retirer des permissions une par une (un user qui ne peut plus vendre, par exemple).
  */
 export const ROLES = ["user", "moderator", "admin"] as const;
 export type Role = (typeof ROLES)[number];
 
-const RANK: Record<Role, number> = { user: 0, moderator: 1, admin: 2 };
+const USER = P.LISTING_SELL | P.ORDER_PLACE | P.REVIEW_CREATE;
+const MODERATOR = USER | P.USERS_READ | P.USERS_SUSPEND | P.LISTINGS_MODERATE | P.ORDERS_READ_ALL;
 
-export function isRole(value: string): value is Role {
-  return (ROLES as readonly string[]).includes(value);
-}
+export const ROLE_PRESETS: Record<Role, bigint> = {
+  user: USER,
+  moderator: MODERATOR,
+  admin: ALL_PERMISSIONS,
+};
 
-/** `role` donne-t-il au moins les droits de `required` ? (un admin a les droits d'un moderator) */
-export function hasAtLeastRole(role: Role, required: Role): boolean {
-  return RANK[role] >= RANK[required];
-}
-
-/** Strictement au-dessus : un moderator ne peut pas agir sur un autre moderator. */
-export function outranks(role: Role, other: Role): boolean {
-  return RANK[role] > RANK[other];
+/** Le rôle dont le masque correspond exactement, ou null si les permissions ont été personnalisées. */
+export function roleOf(mask: bigint): Role | null {
+  return ROLES.find((role) => ROLE_PRESETS[role] === mask) ?? null;
 }

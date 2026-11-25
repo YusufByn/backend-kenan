@@ -1,10 +1,10 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
-import { CurrentUserId, JwtAuthGuard } from "@identity";
+import { Body, Controller, Post } from "@nestjs/common";
+import { CurrentUserId, RequirePermission } from "@identity";
 import { CreateListingDto } from "./create-listing.dto.js";
 import { CreateListingUseCase } from "./create-listing.use-case.js";
 
 @Controller("listings")
-@UseGuards(JwtAuthGuard)
+@RequirePermission("LISTING_SELL")
 export class CreateListingController {
   constructor(private readonly useCase: CreateListingUseCase) {}
 

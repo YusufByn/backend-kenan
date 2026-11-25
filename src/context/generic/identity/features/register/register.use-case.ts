@@ -4,6 +4,7 @@ import { EventBus } from "@core/events/event-bus.js";
 import { AccessTokens } from "../../domain/access-tokens.js";
 import { AdminEmails } from "../../domain/admin-emails.js";
 import { PasswordHasher } from "../../domain/password-hasher.js";
+import { ROLE_PRESETS } from "../../domain/role.js";
 import { User, type UserProfile } from "../../domain/user.js";
 import { UserRepository } from "../../domain/user.repository.js";
 import { UserRegistered } from "../../public/events/user-registered.event.js";
@@ -27,7 +28,7 @@ export class RegisterUseCase {
       name: input.name,
       email: input.email,
       passwordHash: await this.hasher.hash(input.password),
-      role: this.adminEmails.includes(User.normalizeEmail(input.email)) ? "admin" : "user",
+      permissions: ROLE_PRESETS[this.adminEmails.includes(User.normalizeEmail(input.email)) ? "admin" : "user"],
       createdAt: new Date(),
     });
     await this.users.save(user);
