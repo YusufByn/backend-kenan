@@ -213,17 +213,7 @@ context/core-domain ───► context/supporting ───► context/generic
 5. **Pour réagir à ce qui se passe ailleurs, on écoute un événement** au lieu de se faire appeler. Celui qui écoute importe les événements de l'émetteur (via sa `public-api`), l'émetteur ne sait pas qu'il est écouté. C'est ce qui permet à `context/supporting/notifications` de réagir à `context/core-domain/ordering` sans que `ordering` dépende de lui.
 6. **`core/` ne contient que du technique** et ne dépend d'aucun contexte.
 
-> **Vérifiées automatiquement** : `npm run lint:archi` ([dependency-cruiser](https://github.com/sverweij/dependency-cruiser), config dans `.dependency-cruiser.cjs`) échoue au premier import interdit et dit lequel.
-
-| Règle (`.dependency-cruiser.cjs`) | Ce qu'elle interdit |
-|---|---|
-| `domaine-pur` | `domain/` qui importe Nest, TypeORM, `infrastructure/`, `features/`, `public/` ou un autre contexte |
-| `contexte-via-public-api` | Importer autre chose que la `public-api.ts` d'un autre contexte |
-| `slice-isolee` | Une slice qui importe une autre slice |
-| `generic-ignore-le-metier` | `generic/` qui importe `core-domain/` ou `supporting/` |
-| `supporting-ecoute-seulement` | `supporting/` qui importe le module d'un contexte du cœur métier (il n'en écoute que les événements) |
-| `core-sans-metier` | `src/core` qui importe un contexte |
-| `pas-de-cycle-entre-contextes` | Deux contextes qui dépendent l'un de l'autre |
+> Ces règles ne sont pas vérifiées automatiquement (voir [Limites actuelles](#limites-actuelles)).
 
 ### Où mettre du code partagé ?
 
@@ -751,7 +741,6 @@ Les entités et les adapters ne changent pas.
 | `npm run build` | Compile dans `dist/` |
 | `npm start` | Lance `dist/main.js` |
 | `npm run typecheck` | Vérifie les types sans compiler |
-| `npm run lint:archi` | Vérifie les règles de dépendance (`.dependency-cruiser.cjs`) |
 | `npm run seed` | **Vide la base** et la remplit avec la démo (refusé en production) |
 
 ---
@@ -786,6 +775,7 @@ Les entités et les adapters ne changent pas.
 - **Photos sur le disque local** : à passer sur S3 / Cloudinary en prod (un adapter `PhotoStorage`). Les photos d'une annonce supprimée ne sont pas effacées.
 - **Nouvelle permission = masques à migrer** : le masque est enregistré par user, donc une permission ajoutée au catalogue (comme `MESSAGE_SEND`) n'arrive pas toute seule chez les users existants (seuls les comptes `ADMIN_EMAILS` la reçoivent au démarrage). Il faut une migration (`UPDATE users SET permissions = permissions | 8 WHERE ...`), ou `npm run seed` en dev.
 - **Masques limités au bit 52** : le driver SQLite renvoie un `number`. Au-delà, activer `safeIntegers` de better-sqlite3.
+- **Règles de dépendance non vérifiées** : rien n'empêche un import interdit, il faut relire. À mettre en place avec `dependency-cruiser` ou `eslint-plugin-boundaries`.
 - **Pas de durée maximale de session** : une session utilisée au moins une fois tous les 30 jours n'expire jamais.
 - **Pas de suppression de compte** (RGPD) : elle toucherait tous les contextes (annonces, commandes en cours, avis, messages). À faire avec un événement `UserDeleted` et une anonymisation.
 - **Pas d'historique de modération** : les actions sont loggées, mais pas enregistrées en base (qui, quand, pourquoi).

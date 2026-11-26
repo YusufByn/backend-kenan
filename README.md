@@ -57,7 +57,6 @@ Sans configuration, tout marche : les emails sont affichés dans le terminal du 
 | `npm run seed` | **Vide la base** et la remplit avec la démo |
 | `npm run build` / `npm start` | Compiler / lancer la version compilée |
 | `npm run typecheck` | Vérifier les types |
-| `npm run lint:archi` | Vérifier les règles d'architecture (aucun import interdit entre couches et contextes) |
 
 ## Architecture
 
@@ -70,7 +69,7 @@ src/
 └── core/              technique pur : erreurs, événements, HTTP, pagination, bitmask
 ```
 
-Chaque contexte est découpé en **slices** (une fonctionnalité = un dossier : controller, use case, DTO) autour d'un **domaine pur** (entités et ports, sans Nest ni TypeORM). Les contextes ne se parlent que par leur `public-api.ts` ou par **événements** (`UserSuspended` → catalog retire les annonces, ordering annule les commandes, notifications prévient le user, sans qu'identity les connaisse). Ces règles sont vérifiées par `npm run lint:archi`.
+Chaque contexte est découpé en **slices** (une fonctionnalité = un dossier : controller, use case, DTO) autour d'un **domaine pur** (entités et ports, sans Nest ni TypeORM). Les contextes ne se parlent que par leur `public-api.ts` ou par **événements** (`UserSuspended` → catalog retire les annonces, ordering annule les commandes, notifications prévient le user, sans qu'identity les connaisse).
 
 Toutes les réponses ont le même format : `{ code, data, meta }` en succès, `{ code, message, fields, errcode }` en erreur.
 
