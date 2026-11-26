@@ -32,3 +32,26 @@ export class ReviewAlreadyExistsError extends DomainError {
     super("Tu as déjà laissé un avis pour cette commande");
   }
 }
+
+export class ReviewNotFoundError extends DomainError {
+  readonly kind = "not_found";
+  readonly errcode = "REVIEW_NOT_FOUND";
+
+  constructor(id: string) {
+    super(`Aucun avis avec l'id ${id}`);
+  }
+}
+
+export class ReviewActionForbiddenError extends DomainError {
+  readonly kind = "forbidden";
+  readonly errcode = "REVIEW_ACTION_FORBIDDEN";
+}
+
+export class ReviewAlreadyRepliedError extends DomainError {
+  readonly kind = "conflict";
+  readonly errcode = "REVIEW_ALREADY_REPLIED";
+
+  constructor() {
+    super("Tu as déjà répondu à cet avis");
+  }
+}

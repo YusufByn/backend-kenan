@@ -13,4 +13,6 @@ export {
   OrderShipped,
   OrderDelivered,
   OrderCancelled,
+  OrderExpired,
 } from "./public/events/order-events.js";
+export type { CancellationReason } from "./public/events/order-events.js";

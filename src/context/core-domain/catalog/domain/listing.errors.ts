@@ -41,3 +41,13 @@ export class ListingConcurrentUpdateError extends DomainError {
     super("Cette annonce vient d'être modifiée par une autre requête, réessaie");
   }
 }
+
+/** Brouillon, archivée, vendue, ou sa propre annonce : on ne peut pas la suivre. */
+export class ListingNotFavoritableError extends DomainError {
+  readonly kind = "conflict";
+  readonly errcode = "LISTING_NOT_FAVORITABLE";
+
+  constructor(reason: string) {
+    super(reason);
+  }
+}

@@ -1,15 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { OrderQueries } from "@ordering";
+import { EventBus } from "@core/events/event-bus.js";
 import { Review, type ReviewPrimitives } from "../../domain/review.js";
 import { ReviewableOrderNotFoundError } from "../../domain/review.errors.js";
 import { ReviewRepository } from "../../domain/review.repository.js";
+import { ReviewCreated } from "../../public/events/review-events.js";
 
 @Injectable()
 export class CreateReviewUseCase {
   constructor(
     private readonly reviews: ReviewRepository,
     private readonly orders: OrderQueries,
+    private readonly events: EventBus,
   ) {}
 
   async execute(buyerId: string, input: { orderId: string; rating: number; comment?: string }): Promise<ReviewPrimitives> {
@@ -27,6 +30,9 @@ export class CreateReviewUseCase {
       now: new Date(),
     });
     await this.reviews.save(review);
-    return review.toPrimitives();
+
+    const saved = review.toPrimitives();
+    this.events.publish(new ReviewCreated(saved.id, saved.sellerId, saved.buyerId, saved.rating));
+    return saved;
   }
 }

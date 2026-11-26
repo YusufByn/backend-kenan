@@ -19,9 +19,14 @@ export class OrderCancelledEmailListener implements OnModuleInit {
   async handle(event: OrderCancelled): Promise<void> {
     const cancelledByBuyer = event.cancelledBy === event.buyerId;
     const recipientId = cancelledByBuyer ? event.sellerId : event.buyerId;
+    const suspended = event.reason === "account_suspended";
     const detail = cancelledByBuyer
-      ? "L'acheteur a annulé la commande. Tes vélos sont de nouveau en vente :"
-      : "Le vendeur a annulé la commande. Tu ne seras pas débité pour :";
+      ? suspended
+        ? "Le compte de l'acheteur a été suspendu, sa commande est annulée. Tes vélos sont de nouveau en vente :"
+        : "L'acheteur a annulé la commande. Tes vélos sont de nouveau en vente :"
+      : suspended
+        ? "Le compte du vendeur a été suspendu, la commande est annulée. Si tu avais payé, tu es remboursé intégralement :"
+        : "Le vendeur a annulé la commande. Tu ne seras pas débité pour :";
     await this.notifier.notify(
       recipientId,
       `Commande ${orderRef(event.orderId)} annulée`,

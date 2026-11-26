@@ -1,13 +1,25 @@
 import { Injectable } from "@nestjs/common";
 import { UserQueries } from "@identity";
-import { averageRating } from "../../domain/review.js";
-import { ReviewRepository } from "../../domain/review.repository.js";
+import type { PageRequest } from "@core/http/pagination.js";
+import { ReviewRepository, type SellerRatingStats } from "../../domain/review.repository.js";
 
-export type SellerReviewsView = {
-  sellerId: string;
-  count: number;
-  averageRating: number | null;
-  items: { id: string; rating: number; comment: string; createdAt: Date; buyer: { id: string; name: string | null } }[];
+export type SellerReviewView = {
+  id: string;
+  rating: number;
+  comment: string;
+  createdAt: Date;
+  buyer: { id: string; name: string | null };
+  sellerReply: string | null;
+  repliedAt: Date | null;
+};
+
+/** Une page d'avis + les stats du vendeur, calculées sur tous ses avis. */
+export type SellerReviewsPage = {
+  items: SellerReviewView[];
+  page: number;
+  limit: number;
+  total: number;
+  stats: SellerRatingStats;
 };
 
 @Injectable()
@@ -17,25 +29,31 @@ export class ListSellerReviewsUseCase {
     private readonly users: UserQueries,
   ) {}
 
-  async execute(sellerId: string): Promise<SellerReviewsView> {
-    const reviews = await this.reviews.findBySeller(sellerId);
-    const primitives = reviews.map((review) => review.toPrimitives());
+  async execute(sellerId: string, page: PageRequest): Promise<SellerReviewsPage> {
+    const [{ items, total }, stats] = await Promise.all([
+      this.reviews.findBySeller(sellerId, page),
+      this.reviews.statsForSeller(sellerId),
+    ]);
+    const primitives = items.map((review) => review.toPrimitives());
 
     // Un seul appel par acheteur, même s'il a laissé plusieurs avis.
     const buyerIds = [...new Set(primitives.map((review) => review.buyerId))];
     const buyers = new Map(await Promise.all(buyerIds.map(async (id) => [id, await this.users.findById(id)] as const)));
 
     return {
-      sellerId,
-      count: reviews.length,
-      averageRating: averageRating(reviews),
-      items: primitives.map(({ id, rating, comment, createdAt, buyerId }) => ({
+      items: primitives.map(({ id, rating, comment, createdAt, buyerId, sellerReply, repliedAt }) => ({
         id,
         rating,
         comment,
         createdAt,
         buyer: { id: buyerId, name: buyers.get(buyerId)?.name ?? null },
+        sellerReply,
+        repliedAt,
       })),
+      page: page.page,
+      limit: page.limit,
+      total,
+      stats,
     };
   }
 }

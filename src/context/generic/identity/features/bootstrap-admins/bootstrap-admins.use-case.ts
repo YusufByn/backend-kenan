@@ -4,8 +4,8 @@ import { UserRepository } from "../../domain/user.repository.js";
 
 /**
  * Déclenché par le démarrage du serveur, pas par une route : les comptes listés dans ADMIN_EMAILS
- * qui existent déjà deviennent admin (et sont réactivés). Ceux qui n'existent pas encore
- * seront admin dès leur inscription (RegisterUseCase).
+ * qui existent déjà et dont l'email est vérifié deviennent admin (et sont réactivés). Les autres
+ * le deviendront en vérifiant leur email (VerifyEmailUseCase).
  */
 @Injectable()
 export class BootstrapAdminsUseCase implements OnApplicationBootstrap {

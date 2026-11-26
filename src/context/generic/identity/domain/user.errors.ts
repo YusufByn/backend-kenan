@@ -94,3 +94,42 @@ export class UserNotSuspendedError extends DomainError {
     super("Ce compte n'est pas suspendu");
   }
 }
+
+/** Changement de mot de passe : l'actuel ne correspond pas. 400 et pas 401 : le token est valide, c'est un champ du formulaire qui est faux. */
+export class IncorrectPasswordError extends DomainError {
+  readonly kind = "invalid";
+  readonly errcode = "CURRENT_PASSWORD_INCORRECT";
+
+  constructor() {
+    super("Mot de passe actuel incorrect", "currentPassword");
+  }
+}
+
+export class EmailAlreadyVerifiedError extends DomainError {
+  readonly kind = "conflict";
+  readonly errcode = "EMAIL_ALREADY_VERIFIED";
+
+  constructor() {
+    super("Cet email est déjà vérifié");
+  }
+}
+
+/** Lien de vérification inconnu, expiré, déjà utilisé ou remplacé par un envoi plus récent. */
+export class InvalidVerificationTokenError extends DomainError {
+  readonly kind = "invalid";
+  readonly errcode = "VERIFICATION_TOKEN_INVALID";
+
+  constructor() {
+    super("Lien de vérification invalide ou expiré : demande un nouvel email", "token");
+  }
+}
+
+/** Lien de reset inconnu, expiré, déjà utilisé ou remplacé par une demande plus récente. */
+export class InvalidResetTokenError extends DomainError {
+  readonly kind = "invalid";
+  readonly errcode = "RESET_TOKEN_INVALID";
+
+  constructor() {
+    super("Lien de réinitialisation invalide ou expiré : refais une demande", "token");
+  }
+}

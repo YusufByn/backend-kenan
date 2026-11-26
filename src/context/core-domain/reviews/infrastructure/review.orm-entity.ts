@@ -24,4 +24,13 @@ export class ReviewOrmEntity {
 
   @Column("datetime")
   createdAt!: Date;
+
+  @Column("text", { nullable: true })
+  sellerReply!: string | null;
+
+  @Column("datetime", { nullable: true })
+  repliedAt!: Date | null;
+
+  @Column("datetime", { nullable: true })
+  removedAt!: Date | null;
 }

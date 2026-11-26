@@ -15,11 +15,13 @@ import { combine, hasAll } from "@core/bitmask/bitmask.js";
  * | 0   | LISTING_SELL             | catalog  | Créer, modifier, publier ses annonces              |
  * | 1   | ORDER_PLACE              | ordering | Remplir son panier et passer commande              |
  * | 2   | REVIEW_CREATE            | reviews  | Noter un vendeur après livraison                   |
+ * | 3   | MESSAGE_SEND             | messaging| Écrire aux vendeurs / acheteurs (retirable = muet) |
  * | 16  | USERS_READ               | identity | Lister les comptes (GET /admin/users)              |
  * | 17  | USERS_SUSPEND            | identity | Suspendre / réactiver un compte                    |
  * | 18  | USERS_MANAGE_PERMISSIONS | identity | Changer les permissions d'un compte                |
  * | 19  | LISTINGS_MODERATE        | catalog  | Retirer l'annonce de n'importe quel vendeur        |
  * | 20  | ORDERS_READ_ALL          | ordering | Consulter toutes les commandes (support)           |
+ * | 21  | REVIEWS_MODERATE         | reviews  | Retirer un avis abusif                             |
  *
  * Bits 0-15 : marketplace. Bits 16+ : modération.
  * Bits retirés (ne pas réutiliser) : aucun.
@@ -28,12 +30,14 @@ export const PERMISSIONS = {
   LISTING_SELL: 1n << 0n,
   ORDER_PLACE: 1n << 1n,
   REVIEW_CREATE: 1n << 2n,
+  MESSAGE_SEND: 1n << 3n,
 
   USERS_READ: 1n << 16n,
   USERS_SUSPEND: 1n << 17n,
   USERS_MANAGE_PERMISSIONS: 1n << 18n,
   LISTINGS_MODERATE: 1n << 19n,
   ORDERS_READ_ALL: 1n << 20n,
+  REVIEWS_MODERATE: 1n << 21n,
 } as const;
 
 export type PermissionName = keyof typeof PERMISSIONS;

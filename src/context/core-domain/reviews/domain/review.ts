@@ -1,4 +1,10 @@
-import { InvalidReviewError, ReviewAlreadyExistsError, ReviewNotAllowedError } from "./review.errors.js";
+import {
+  InvalidReviewError,
+  ReviewActionForbiddenError,
+  ReviewAlreadyExistsError,
+  ReviewAlreadyRepliedError,
+  ReviewNotAllowedError,
+} from "./review.errors.js";
 
 export type ReviewPrimitives = {
   id: string;
@@ -8,11 +14,17 @@ export type ReviewPrimitives = {
   rating: number;
   comment: string;
   createdAt: Date;
+  /** Réponse publique du vendeur, une seule fois. */
+  sellerReply: string | null;
+  repliedAt: Date | null;
+  /** Retiré par la modération : n'apparaît plus et ne compte plus dans la moyenne, mais bloque un nouvel avis. */
+  removedAt: Date | null;
 };
 
 const MIN_RATING = 1;
 const MAX_RATING = 5;
 const COMMENT_MAX_LENGTH = 2000;
+const REPLY_MAX_LENGTH = 1000;
 
 /** Note laissée par l'acheteur sur le vendeur, une fois la commande livrée. */
 export class Review {
@@ -48,6 +60,9 @@ export class Review {
       rating: props.rating,
       comment,
       createdAt: props.now,
+      sellerReply: null,
+      repliedAt: null,
+      removedAt: null,
     });
   }
 
@@ -55,14 +70,32 @@ export class Review {
     return new Review({ ...props });
   }
 
+  get id(): string {
+    return this.props.id;
+  }
+
+  get isRemoved(): boolean {
+    return this.props.removedAt !== null;
+  }
+
+  /** Le vendeur noté répond publiquement, une seule fois. */
+  reply(sellerId: string, text: string, now: Date): void {
+    if (sellerId !== this.props.sellerId) throw new ReviewActionForbiddenError("Seul le vendeur noté peut répondre à cet avis");
+    if (this.props.sellerReply !== null) throw new ReviewAlreadyRepliedError();
+    const reply = text.trim();
+    if (!reply || reply.length > REPLY_MAX_LENGTH) {
+      throw new InvalidReviewError(`La réponse est requise (${REPLY_MAX_LENGTH} caractères max)`, "reply");
+    }
+    this.props.sellerReply = reply;
+    this.props.repliedAt = now;
+  }
+
+  /** Modération (REVIEWS_MODERATE, vérifiée par la route). Idempotent. */
+  remove(now: Date): void {
+    this.props.removedAt ??= now;
+  }
+
   toPrimitives(): ReviewPrimitives {
     return { ...this.props };
   }
-}
-
-/** Moyenne arrondie à 0,1 près, null sans avis. */
-export function averageRating(reviews: Review[]): number | null {
-  if (reviews.length === 0) return null;
-  const sum = reviews.reduce((total, review) => total + review.toPrimitives().rating, 0);
-  return Math.round((sum / reviews.length) * 10) / 10;
 }

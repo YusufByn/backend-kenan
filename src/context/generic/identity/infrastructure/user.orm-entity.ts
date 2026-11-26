@@ -36,6 +36,9 @@ export class UserOrmEntity {
   @Column("datetime", { nullable: true })
   suspendedAt!: Date | null;
 
+  @Column("datetime", { nullable: true })
+  emailVerifiedAt!: Date | null;
+
   @Column("datetime")
   createdAt!: Date;
 }

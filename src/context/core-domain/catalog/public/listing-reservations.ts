@@ -9,4 +9,6 @@ export abstract class ListingReservations {
   abstract release(listingIds: string[]): Promise<void>;
   /** reserved → sold (livraison confirmée). */
   abstract markSold(listingIds: string[]): Promise<void>;
+  /** reserved → draft : commande annulée parce que le vendeur est suspendu, les vélos ne repartent pas en vente. */
+  abstract withdraw(listingIds: string[]): Promise<void>;
 }

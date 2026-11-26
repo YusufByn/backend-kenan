@@ -3,6 +3,11 @@ import { CannotBuyOwnListingError, InvalidOrderError, OrderActionForbiddenError,
 export const ORDER_STATUSES = ["pending_payment", "paid", "shipped", "delivered", "cancelled"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
+/** Une commande non payée sous 48 h est annulée d'office : ses vélos ne restent pas bloqués. */
+export const PAYMENT_DEADLINE_MS = 48 * 60 * 60 * 1000;
+/** Sans confirmation de l'acheteur 14 jours après l'expédition, la livraison est considérée faite. */
+export const AUTO_DELIVERY_DELAY_MS = 14 * 24 * 60 * 60 * 1000;
+
 /** Titre et prix copiés au checkout : si le vendeur modifie son annonce ensuite, la commande ne change pas. */
 export type OrderLine = { listingId: string; title: string; priceCents: number };
 
@@ -24,13 +29,15 @@ export type OrderPrimitives = {
   shippingAddress: ShippingAddress;
   trackingNumber: string | null;
   createdAt: Date;
+  /** Date limite de paiement, tant que la commande attend d'être payée. Calculée, pas stockée. */
+  paymentDueAt: Date | null;
   paidAt: Date | null;
   shippedAt: Date | null;
   deliveredAt: Date | null;
   cancelledAt: Date | null;
 };
 
-type OrderState = Omit<OrderPrimitives, "totalCents">;
+type OrderState = Omit<OrderPrimitives, "totalCents" | "paymentDueAt">;
 
 /** Une commande = un acheteur, un vendeur, une ou plusieurs annonces de ce vendeur. */
 export class Order {
@@ -63,8 +70,9 @@ export class Order {
     });
   }
 
-  static restore(props: OrderPrimitives): Order {
-    const { totalCents: _derived, ...state } = props;
+  /** paymentDueAt est accepté mais ignoré : il est recalculé à partir de createdAt. */
+  static restore(props: Omit<OrderPrimitives, "paymentDueAt"> & { paymentDueAt?: Date | null }): Order {
+    const { totalCents: _total, paymentDueAt: _dueAt, ...state } = props;
     return new Order({ ...state, lines: state.lines.map((line) => ({ ...line })) });
   }
 
@@ -82,6 +90,14 @@ export class Order {
 
   get totalCents(): number {
     return this.state.lines.reduce((sum, line) => sum + line.priceCents, 0);
+  }
+
+  get paymentDueAt(): Date {
+    return new Date(this.state.createdAt.getTime() + PAYMENT_DEADLINE_MS);
+  }
+
+  isSoldBy(userId: string): boolean {
+    return this.state.sellerId === userId;
   }
 
   /** Seuls l'acheteur et le vendeur voient une commande. */
@@ -111,6 +127,25 @@ export class Order {
     this.state.deliveredAt = now;
   }
 
+  /** Tâche planifiée : pas payée à temps. Les vélos doivent être remis en vente par l'appelant. */
+  expire(now: Date): void {
+    if (this.state.status === "pending_payment" && now < this.paymentDueAt) {
+      throw new OrderStatusError("faire expirer avant sa date limite de paiement", this.state.status);
+    }
+    this.transition("faire expirer", ["pending_payment"], "cancelled");
+    this.state.cancelledAt = now;
+  }
+
+  /** Tâche planifiée : l'acheteur n'a pas confirmé la réception dans le délai. Même effet que confirmDelivery. */
+  confirmDeliveryAutomatically(now: Date): void {
+    const shippedAt = this.state.shippedAt;
+    if (this.state.status === "shipped" && shippedAt && now.getTime() < shippedAt.getTime() + AUTO_DELIVERY_DELAY_MS) {
+      throw new OrderStatusError("confirmer d'office la réception d'", this.state.status);
+    }
+    this.transition("confirmer d'office la réception d'", ["shipped"], "delivered");
+    this.state.deliveredAt = now;
+  }
+
   /** Acheteur ou vendeur, tant que le vélo n'est pas parti. Si la commande était payée, le remboursement est simulé. */
   cancel(userId: string, now: Date): void {
     if (!this.isVisibleTo(userId)) throw new OrderActionForbiddenError("Tu ne peux pas annuler cette commande");
@@ -124,6 +159,7 @@ export class Order {
       lines: this.state.lines.map((line) => ({ ...line })),
       shippingAddress: { ...this.state.shippingAddress },
       totalCents: this.totalCents,
+      paymentDueAt: this.state.status === "pending_payment" ? this.paymentDueAt : null,
     };
   }
 

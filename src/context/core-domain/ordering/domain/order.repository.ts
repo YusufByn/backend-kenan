@@ -15,10 +15,12 @@ export abstract class OrderRepository {
   abstract findById(id: string): Promise<Order | null>;
   /** Plus récentes d'abord. */
   abstract search(criteria: OrderSearch): Promise<{ items: Order[]; total: number }>;
-  /** Plus récentes d'abord. */
-  abstract findByBuyer(buyerId: string): Promise<Order[]>;
-  /** Plus récentes d'abord. */
-  abstract findBySeller(sellerId: string): Promise<Order[]>;
+  /** En attente de paiement, créées avant `before` : celles dont la date limite est dépassée. */
+  abstract findUnpaidCreatedBefore(before: Date): Promise<Order[]>;
+  /** Expédiées avant `before` et toujours pas confirmées. */
+  abstract findShippedBefore(before: Date): Promise<Order[]>;
+  /** Pas encore expédiées (pending_payment ou paid), où le user est acheteur ou vendeur. */
+  abstract findOpenInvolving(userId: string): Promise<Order[]>;
   /** Tout ou rien (transaction). */
   abstract saveAll(orders: Order[]): Promise<void>;
 

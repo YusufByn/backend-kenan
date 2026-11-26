@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from "@nestjs/common";
 import { RequirePermission } from "@identity";
-import { withMeta } from "@core/http/api-response.js";
+import { withPage } from "@core/http/api-response.js";
 import { AdminListOrdersQuery } from "./admin-list-orders.query.js";
 import { AdminListOrdersUseCase } from "./admin-list-orders.use-case.js";
 
@@ -11,7 +11,6 @@ export class AdminListOrdersController {
 
   @Get()
   async handle(@Query() query: AdminListOrdersQuery) {
-    const { items, ...pagination } = await this.useCase.execute(query);
-    return withMeta(items, pagination);
+    return withPage(await this.useCase.execute(query));
   }
 }

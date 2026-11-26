@@ -27,7 +27,9 @@ export class OrderDeliveredEmailsListener implements OnModuleInit {
       this.notifier.notify(
         event.sellerId,
         `Vente terminée : commande ${ref}`,
-        (name) => `Salut ${name},\n\nL'acheteur a confirmé la réception. Vente finalisée pour ${formatPrice(event.totalCents)}.`,
+        (name) =>
+          `Salut ${name},\n\n${event.automatic ? "La livraison est confirmée d'office (14 jours après l'expédition)" : "L'acheteur a confirmé la réception"}. ` +
+          `Vente finalisée pour ${formatPrice(event.totalCents)}.`,
       ),
     ]);
   }

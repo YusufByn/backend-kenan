@@ -19,3 +19,8 @@ export type { PermissionName } from "./domain/permissions.js";
 
 // Événements publiés par identity (à écouter avec EventBus.subscribe).
 export { UserRegistered } from "./public/events/user-registered.event.js";
+export { EmailVerificationRequested } from "./public/events/email-verification-requested.event.js";
+export { PasswordResetRequested } from "./public/events/password-reset-requested.event.js";
+export { PasswordChanged } from "./public/events/password-changed.event.js";
+export { UserSuspended } from "./public/events/user-suspended.event.js";
+export { UserReactivated } from "./public/events/user-reactivated.event.js";

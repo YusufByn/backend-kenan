@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { In, type Repository } from "typeorm";
 import { escapeLike } from "@core/database/escape-like.js";
+import { offsetOf } from "@core/http/pagination.js";
 import { isUniqueViolation } from "@core/database/is-unique-violation.js";
 import { User } from "../domain/user.js";
 import { EmailAlreadyUsedError } from "../domain/user.errors.js";
@@ -52,7 +53,7 @@ export class TypeOrmUserRepository extends UserRepository {
     const [rows, total] = await query
       .orderBy("u.createdAt", "DESC")
       .addOrderBy("u.id", "ASC") // ordre stable entre deux pages
-      .skip((criteria.page - 1) * criteria.limit)
+      .skip(offsetOf(criteria))
       .take(criteria.limit)
       .getManyAndCount();
 

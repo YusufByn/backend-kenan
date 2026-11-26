@@ -1,10 +1,11 @@
-import { Transform, Type } from "class-transformer";
-import { ArrayUnique, IsArray, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from "class-validator";
+import { Transform } from "class-transformer";
+import { ArrayUnique, IsArray, IsIn, IsOptional, IsString, MaxLength } from "class-validator";
+import { PaginationQuery } from "@core/http/pagination.js";
 import { PERMISSION_NAMES, type PermissionName } from "../../domain/permissions.js";
 import { USER_STATUSES, type UserStatus } from "../../domain/user.repository.js";
 
 /** Query params de GET /admin/users. */
-export class AdminListUsersQuery {
+export class AdminListUsersQuery extends PaginationQuery {
   @IsOptional()
   @IsString()
   @MaxLength(100)
@@ -21,17 +22,4 @@ export class AdminListUsersQuery {
   @IsOptional()
   @IsIn([...USER_STATUSES])
   status?: UserStatus;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page: number = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(50)
-  limit: number = 20;
 }

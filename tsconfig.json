@@ -17,6 +17,8 @@
       "@catalog": ["./src/context/core-domain/catalog/public-api.ts"],
       "@ordering": ["./src/context/core-domain/ordering/public-api.ts"],
       "@reviews": ["./src/context/core-domain/reviews/public-api.ts"],
+      "@messaging": ["./src/context/core-domain/messaging/public-api.ts"],
+      "@media": ["./src/context/supporting/media/public-api.ts"],
       "@notifications": ["./src/context/supporting/notifications/public-api.ts"]
     }
   },

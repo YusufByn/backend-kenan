@@ -29,6 +29,10 @@ export class CatalogListingReservations extends ListingReservations {
     return this.transition(listingIds, (listing) => listing.markSold());
   }
 
+  withdraw(listingIds: string[]): Promise<void> {
+    return this.transition(listingIds, (listing) => listing.withdraw());
+  }
+
   private async transition(listingIds: string[], apply: (listing: Listing) => void): Promise<void> {
     const listings = await this.listings.findByIds(listingIds);
     if (listings.length !== new Set(listingIds).size) throw new ListingNotAvailableError();

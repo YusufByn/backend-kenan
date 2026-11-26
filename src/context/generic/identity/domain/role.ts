@@ -8,8 +8,8 @@ import { ALL_PERMISSIONS, PERMISSIONS as P } from "./permissions.js";
 export const ROLES = ["user", "moderator", "admin"] as const;
 export type Role = (typeof ROLES)[number];
 
-const USER = P.LISTING_SELL | P.ORDER_PLACE | P.REVIEW_CREATE;
-const MODERATOR = USER | P.USERS_READ | P.USERS_SUSPEND | P.LISTINGS_MODERATE | P.ORDERS_READ_ALL;
+const USER = P.LISTING_SELL | P.ORDER_PLACE | P.REVIEW_CREATE | P.MESSAGE_SEND;
+const MODERATOR = USER | P.USERS_READ | P.USERS_SUSPEND | P.LISTINGS_MODERATE | P.ORDERS_READ_ALL | P.REVIEWS_MODERATE;
 
 export const ROLE_PRESETS: Record<Role, bigint> = {
   user: USER,

@@ -1,4 +1,5 @@
-import type { Category, Condition, FrameSize, Listing, WheelSize } from "./listing.js";
+import type { PageRequest } from "@core/http/pagination.js";
+import type { Category, Condition, FrameSize, Listing, ListingStatus, WheelSize } from "./listing.js";
 import { ListingNotFoundError } from "./listing.errors.js";
 
 export const LISTING_SORTS = ["recent", "price_asc", "price_desc"] as const;
@@ -22,8 +23,13 @@ export type ListingSearch = {
 export abstract class ListingRepository {
   abstract findById(id: string): Promise<Listing | null>;
   abstract findByIds(ids: string[]): Promise<Listing[]>;
-  /** Toutes les annonces d'un vendeur, plus récentes d'abord. */
-  abstract findBySeller(sellerId: string): Promise<Listing[]>;
+  /** Annonces d'un vendeur, plus récentes d'abord, filtrées par statut si `status` est donné. */
+  abstract findBySeller(
+    sellerId: string,
+    criteria: PageRequest & { status?: ListingStatus },
+  ): Promise<{ items: Listing[]; total: number }>;
+  /** Toutes les annonces publiées d'un vendeur (sans pagination : pour les retirer de la vente). */
+  abstract findPublishedBySeller(sellerId: string): Promise<Listing[]>;
   /** Uniquement les annonces publiées. */
   abstract searchPublished(criteria: ListingSearch): Promise<{ items: Listing[]; total: number }>;
   /**

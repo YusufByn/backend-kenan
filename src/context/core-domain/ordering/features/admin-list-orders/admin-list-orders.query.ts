@@ -1,9 +1,9 @@
-import { Type } from "class-transformer";
-import { IsIn, IsInt, IsOptional, IsUUID, Max, Min } from "class-validator";
+import { IsIn, IsOptional, IsUUID } from "class-validator";
+import { PaginationQuery } from "@core/http/pagination.js";
 import { ORDER_STATUSES, type OrderStatus } from "../../domain/order.js";
 
 /** Query params de GET /admin/orders. */
-export class AdminListOrdersQuery {
+export class AdminListOrdersQuery extends PaginationQuery {
   @IsOptional()
   @IsIn([...ORDER_STATUSES])
   status?: OrderStatus;
@@ -15,17 +15,4 @@ export class AdminListOrdersQuery {
   @IsOptional()
   @IsUUID()
   sellerId?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page: number = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(50)
-  limit: number = 20;
 }

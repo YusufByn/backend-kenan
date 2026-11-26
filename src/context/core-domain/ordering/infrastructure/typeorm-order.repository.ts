@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { In, type FindOptionsWhere, type Repository } from "typeorm";
+import { In, LessThan, type FindOptionsWhere, type Repository } from "typeorm";
+import { offsetOf } from "@core/http/pagination.js";
 import { Order, type OrderLine } from "../domain/order.js";
 import { OrderRepository, type OrderSearch } from "../domain/order.repository.js";
 import { OrderLineOrmEntity, OrderOrmEntity } from "./order.orm-entity.js";
@@ -23,12 +24,18 @@ export class TypeOrmOrderRepository extends OrderRepository {
     return order ?? null;
   }
 
-  async findByBuyer(buyerId: string): Promise<Order[]> {
-    return this.withLines(await this.orders.find({ where: { buyerId }, order: { createdAt: "DESC" } }));
+  async findUnpaidCreatedBefore(before: Date): Promise<Order[]> {
+    return this.withLines(await this.orders.findBy({ status: "pending_payment", createdAt: LessThan(before) }));
   }
 
-  async findBySeller(sellerId: string): Promise<Order[]> {
-    return this.withLines(await this.orders.find({ where: { sellerId }, order: { createdAt: "DESC" } }));
+  async findShippedBefore(before: Date): Promise<Order[]> {
+    return this.withLines(await this.orders.findBy({ status: "shipped", shippedAt: LessThan(before) }));
+  }
+
+  async findOpenInvolving(userId: string): Promise<Order[]> {
+    const open = In(["pending_payment", "paid"]);
+    // Un tableau de conditions = OR : acheteur OU vendeur.
+    return this.withLines(await this.orders.findBy([{ buyerId: userId, status: open }, { sellerId: userId, status: open }]));
   }
 
   async search(criteria: OrderSearch): Promise<{ items: Order[]; total: number }> {
@@ -41,7 +48,7 @@ export class TypeOrmOrderRepository extends OrderRepository {
     const [rows, total] = await this.orders.findAndCount({
       where,
       order: { createdAt: "DESC", id: "ASC" }, // ordre stable entre deux pages
-      skip: (criteria.page - 1) * criteria.limit,
+      skip: offsetOf(criteria),
       take: criteria.limit,
     });
     return { items: await this.withLines(rows), total };
@@ -50,7 +57,8 @@ export class TypeOrmOrderRepository extends OrderRepository {
   async saveAll(orders: Order[]): Promise<void> {
     await this.orders.manager.transaction(async (manager) => {
       for (const order of orders) {
-        const { lines, ...row } = order.toPrimitives();
+        // paymentDueAt est calculé, pas stocké.
+        const { lines, paymentDueAt: _computed, ...row } = order.toPrimitives();
         await manager.save(OrderOrmEntity, row);
         // Les lignes ne changent jamais après le checkout : save() les insère la première fois, puis ne fait rien.
         await manager.save(

@@ -10,12 +10,15 @@ import { AdminListOrdersController } from "./features/admin-list-orders/admin-li
 import { AdminListOrdersUseCase } from "./features/admin-list-orders/admin-list-orders.use-case.js";
 import { AddToCartController } from "./features/add-to-cart/add-to-cart.controller.js";
 import { AddToCartUseCase } from "./features/add-to-cart/add-to-cart.use-case.js";
+import { AutoConfirmDeliveryJob } from "./features/auto-confirm-delivery/auto-confirm-delivery.job.js";
+import { CancelOrdersOfSuspendedUserListener } from "./features/cancel-orders-of-suspended-user/cancel-orders-of-suspended-user.listener.js";
 import { CancelOrderController } from "./features/cancel-order/cancel-order.controller.js";
 import { CancelOrderUseCase } from "./features/cancel-order/cancel-order.use-case.js";
 import { CheckoutController } from "./features/checkout/checkout.controller.js";
 import { CheckoutUseCase } from "./features/checkout/checkout.use-case.js";
 import { ConfirmDeliveryController } from "./features/confirm-delivery/confirm-delivery.controller.js";
 import { ConfirmDeliveryUseCase } from "./features/confirm-delivery/confirm-delivery.use-case.js";
+import { ExpireUnpaidOrdersJob } from "./features/expire-unpaid-orders/expire-unpaid-orders.job.js";
 import { GetCartController } from "./features/get-cart/get-cart.controller.js";
 import { GetCartUseCase } from "./features/get-cart/get-cart.use-case.js";
 import { GetOrderController } from "./features/get-order/get-order.controller.js";
@@ -40,7 +43,7 @@ import { OrderingOrderQueries } from "./public/ordering-order-queries.js";
 @Module({
   imports: [
     TypeOrmModule.forFeature([CartItemOrmEntity, OrderOrmEntity, OrderLineOrmEntity]),
-    IdentityModule, // JwtAuthGuard, RequirePermission
+    IdentityModule, // JwtAuthGuard, RequirePermission, événement UserSuspended
     CatalogModule, // ListingQueries, ListingReservations
   ],
   controllers: [
@@ -72,6 +75,10 @@ import { OrderingOrderQueries } from "./public/ordering-order-queries.js";
     ListMySalesUseCase,
     AdminListOrdersUseCase,
     AdminGetOrderUseCase,
+    // Sans route : horloge et événements
+    ExpireUnpaidOrdersJob,
+    AutoConfirmDeliveryJob,
+    CancelOrdersOfSuspendedUserListener,
 
     { provide: CartRepository, useClass: TypeOrmCartRepository },
     { provide: OrderRepository, useClass: TypeOrmOrderRepository },

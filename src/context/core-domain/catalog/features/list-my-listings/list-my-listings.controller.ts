@@ -1,5 +1,7 @@
-import { Controller, Get, UseGuards } from "@nestjs/common";
+import { Controller, Get, Query, UseGuards } from "@nestjs/common";
 import { CurrentUserId, JwtAuthGuard } from "@identity";
+import { withPage } from "@core/http/api-response.js";
+import { ListMyListingsQuery } from "./list-my-listings.query.js";
 import { ListMyListingsUseCase } from "./list-my-listings.use-case.js";
 
 @Controller("me")
@@ -8,7 +10,7 @@ export class ListMyListingsController {
   constructor(private readonly useCase: ListMyListingsUseCase) {}
 
   @Get("listings")
-  handle(@CurrentUserId() userId: string) {
-    return this.useCase.execute(userId);
+  async handle(@CurrentUserId() userId: string, @Query() query: ListMyListingsQuery) {
+    return withPage(await this.useCase.execute(userId, query));
   }
 }

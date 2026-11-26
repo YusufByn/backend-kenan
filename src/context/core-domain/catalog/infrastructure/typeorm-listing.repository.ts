@@ -2,7 +2,8 @@ import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { In, type Repository } from "typeorm";
 import { escapeLike } from "@core/database/escape-like.js";
-import { Listing } from "../domain/listing.js";
+import { offsetOf, type PageRequest } from "@core/http/pagination.js";
+import { Listing, type ListingStatus } from "../domain/listing.js";
 import { ListingConcurrentUpdateError } from "../domain/listing.errors.js";
 import { ListingRepository, type ListingSearch, type ListingSort } from "../domain/listing.repository.js";
 import { ListingOrmEntity } from "./listing.orm-entity.js";
@@ -33,8 +34,21 @@ export class TypeOrmListingRepository extends ListingRepository {
     return rows.map((row) => Listing.restore(row));
   }
 
-  async findBySeller(sellerId: string): Promise<Listing[]> {
-    const rows = await this.orm.find({ where: { sellerId }, order: { createdAt: "DESC" } });
+  async findBySeller(
+    sellerId: string,
+    criteria: PageRequest & { status?: ListingStatus },
+  ): Promise<{ items: Listing[]; total: number }> {
+    const [rows, total] = await this.orm.findAndCount({
+      where: criteria.status ? { sellerId, status: criteria.status } : { sellerId },
+      order: { createdAt: "DESC", id: "ASC" },
+      skip: offsetOf(criteria),
+      take: criteria.limit,
+    });
+    return { items: rows.map((row) => Listing.restore(row)), total };
+  }
+
+  async findPublishedBySeller(sellerId: string): Promise<Listing[]> {
+    const rows = await this.orm.findBy({ sellerId, status: "published" });
     return rows.map((row) => Listing.restore(row));
   }
 
@@ -61,7 +75,7 @@ export class TypeOrmListingRepository extends ListingRepository {
     const [rows, total] = await query
       .orderBy(column, direction)
       .addOrderBy("l.id", "ASC") // ordre stable entre deux pages
-      .skip((criteria.page - 1) * criteria.limit)
+      .skip(offsetOf(criteria))
       .take(criteria.limit)
       .getManyAndCount();
 

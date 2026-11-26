@@ -7,6 +7,7 @@ import {
   UserActionForbiddenError,
   UserAlreadySuspendedError,
   UserNotSuspendedError,
+  EmailAlreadyVerifiedError,
 } from "./user.errors.js";
 
 export type UserPrimitives = {
@@ -18,6 +19,8 @@ export type UserPrimitives = {
   permissions: bigint;
   /** null = compte actif. */
   suspendedAt: Date | null;
+  /** null = email pas encore vérifié (inscription, ou email changé depuis). */
+  emailVerifiedAt: Date | null;
   createdAt: Date;
 };
 
@@ -26,6 +29,7 @@ export type UserProfile = {
   id: string;
   name: string;
   email: string;
+  emailVerified: boolean;
   /** Le rôle si le masque correspond exactement à un preset, sinon null (permissions personnalisées). */
   role: Role | null;
   permissions: PermissionName[];
@@ -46,14 +50,15 @@ export class User {
     readonly id: string,
     private name: string,
     private email: string,
-    readonly passwordHash: string,
+    private passwordHashValue: string,
     private mask: bigint,
     private suspendedAt: Date | null,
+    private emailVerifiedAt: Date | null,
     readonly createdAt: Date,
   ) {}
 
-  /** Inscription d'un nouveau user : toutes les règles métier sont appliquées. Un compte neuf est toujours actif. */
-  static register(props: Omit<UserPrimitives, "suspendedAt">): User {
+  /** Inscription d'un nouveau user : toutes les règles métier sont appliquées. Un compte neuf est actif, son email pas encore vérifié. */
+  static register(props: Omit<UserPrimitives, "suspendedAt" | "emailVerifiedAt">): User {
     return new User(
       props.id,
       User.checkName(props.name),
@@ -61,19 +66,32 @@ export class User {
       props.passwordHash,
       props.permissions,
       null,
+      null,
       props.createdAt,
     );
   }
 
   /** Reconstruit un user déjà validé, lu depuis le stockage. */
   static restore(props: UserPrimitives): User {
-    return new User(props.id, props.name, props.email, props.passwordHash, props.permissions, props.suspendedAt, props.createdAt);
+    return new User(
+      props.id,
+      props.name,
+      props.email,
+      props.passwordHash,
+      props.permissions,
+      props.suspendedAt,
+      props.emailVerifiedAt,
+      props.createdAt,
+    );
   }
 
-  /** Vérifié sur le mot de passe en clair, avant hachage (le domaine ne voit jamais que le hash ensuite). */
-  static assertValidPassword(password: string): void {
+  /**
+   * Vérifié sur le mot de passe en clair, avant hachage (le domaine ne voit jamais que le hash ensuite).
+   * `field` : nom du champ dans la requête, pour que le front sache où afficher l'erreur.
+   */
+  static assertValidPassword(password: string, field = "password"): void {
     if (password.length < PASSWORD_MIN_LENGTH) {
-      throw new InvalidUserError(`Le mot de passe doit faire au moins ${PASSWORD_MIN_LENGTH} caractères`, "password");
+      throw new InvalidUserError(`Le mot de passe doit faire au moins ${PASSWORD_MIN_LENGTH} caractères`, field);
     }
   }
 
@@ -86,12 +104,20 @@ export class User {
     return this.email;
   }
 
+  get passwordHash(): string {
+    return this.passwordHashValue;
+  }
+
   get permissions(): bigint {
     return this.mask;
   }
 
   get isSuspended(): boolean {
     return this.suspendedAt !== null;
+  }
+
+  get isEmailVerified(): boolean {
+    return this.emailVerifiedAt !== null;
   }
 
   /** A toutes les permissions de `flags`. */
@@ -104,12 +130,32 @@ export class User {
     if (this.isSuspended) throw new AccountSuspendedError();
   }
 
-  update(changes: { name?: string; email?: string }): void {
+  /** Renvoie true si l'email a changé : il n'est alors plus vérifié, un nouveau lien doit être envoyé. */
+  update(changes: { name?: string; email?: string }): { emailChanged: boolean } {
     // On valide tout avant de modifier : jamais d'état à moitié mis à jour.
     const name = changes.name !== undefined ? User.checkName(changes.name) : this.name;
     const email = changes.email !== undefined ? User.checkEmail(changes.email) : this.email;
+    const emailChanged = email !== this.email;
     this.name = name;
     this.email = email;
+    if (emailChanged) this.emailVerifiedAt = null;
+    return { emailChanged };
+  }
+
+  /** Le user a cliqué sur le lien reçu à son adresse : elle lui appartient bien. */
+  verifyEmail(now: Date): void {
+    if (this.isEmailVerified) throw new EmailAlreadyVerifiedError();
+    this.emailVerifiedAt = now;
+  }
+
+  /** Avant d'envoyer un nouveau lien de vérification. */
+  assertEmailNotVerified(): void {
+    if (this.isEmailVerified) throw new EmailAlreadyVerifiedError();
+  }
+
+  /** `passwordHash` : le nouveau mot de passe, déjà validé (assertValidPassword) puis haché. */
+  changePassword(passwordHash: string): void {
+    this.passwordHashValue = passwordHash;
   }
 
   /**
@@ -148,9 +194,11 @@ export class User {
   /**
    * Compte listé dans ADMIN_EMAILS : toutes les permissions et actif, quoi qu'il arrive
    * (y compris les permissions ajoutées au catalogue depuis le dernier démarrage).
+   * Seulement si l'email est vérifié : sinon, le premier venu qui s'inscrit avec cette adresse deviendrait admin.
    * Renvoie false si rien n'a changé (évite une écriture inutile au démarrage).
    */
   grantBootstrapAdmin(): boolean {
+    if (!this.isEmailVerified) return false;
     if (this.mask === ALL_PERMISSIONS && !this.isSuspended) return false;
     this.mask = ALL_PERMISSIONS;
     this.suspendedAt = null;
@@ -162,6 +210,7 @@ export class User {
       id: this.id,
       name: this.name,
       email: this.email,
+      emailVerified: this.isEmailVerified,
       role: roleOf(this.mask),
       permissions: toNames(this.mask),
       createdAt: this.createdAt,
@@ -177,9 +226,10 @@ export class User {
       id: this.id,
       name: this.name,
       email: this.email,
-      passwordHash: this.passwordHash,
+      passwordHash: this.passwordHashValue,
       permissions: this.mask,
       suspendedAt: this.suspendedAt,
+      emailVerifiedAt: this.emailVerifiedAt,
       createdAt: this.createdAt,
     };
   }

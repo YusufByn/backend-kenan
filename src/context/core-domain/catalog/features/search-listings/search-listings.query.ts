@@ -1,5 +1,6 @@
 import { Type } from "class-transformer";
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from "class-validator";
+import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from "class-validator";
+import { PaginationQuery } from "@core/http/pagination.js";
 import {
   CATEGORIES,
   CONDITIONS,
@@ -13,7 +14,7 @@ import {
 import { LISTING_SORTS, type ListingSort } from "../../domain/listing.repository.js";
 
 /** Query params de GET /listings. Les nombres arrivent en texte : @Type les convertit. */
-export class SearchListingsQuery {
+export class SearchListingsQuery extends PaginationQuery {
   @IsOptional()
   @IsString()
   @MaxLength(100)
@@ -54,17 +55,4 @@ export class SearchListingsQuery {
   @IsOptional()
   @IsIn([...LISTING_SORTS])
   sort: ListingSort = "recent";
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page: number = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(50)
-  limit: number = 20;
 }

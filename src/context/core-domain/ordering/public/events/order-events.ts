@@ -36,15 +36,30 @@ export class OrderShipped extends OrderEvent {
   }
 }
 
-/** L'acheteur a confirmé la réception : la vente est terminée. */
-export class OrderDelivered extends OrderEvent {}
-
-export class OrderCancelled extends OrderEvent {
+/** Réception confirmée, par l'acheteur ou d'office 14 jours après l'expédition : la vente est terminée. */
+export class OrderDelivered extends OrderEvent {
   constructor(
     order: OrderPrimitives,
-    /** Id de l'acheteur ou du vendeur, selon qui a annulé. */
-    readonly cancelledBy: string,
+    /** true si confirmée d'office par la tâche planifiée. */
+    readonly automatic = false,
   ) {
     super(order);
   }
 }
+
+/** Pourquoi une commande est annulée : le message envoyé n'est pas le même. */
+export type CancellationReason = "cancelled_by_user" | "account_suspended";
+
+export class OrderCancelled extends OrderEvent {
+  constructor(
+    order: OrderPrimitives,
+    /** Id de l'acheteur ou du vendeur : celui qui a annulé, ou dont le compte a été suspendu. */
+    readonly cancelledBy: string,
+    readonly reason: CancellationReason = "cancelled_by_user",
+  ) {
+    super(order);
+  }
+}
+
+/** Pas payée avant sa date limite : annulée d'office par la tâche planifiée, les vélos sont remis en vente. */
+export class OrderExpired extends OrderEvent {}

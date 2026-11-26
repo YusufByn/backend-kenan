@@ -68,6 +68,14 @@ export class Listing {
     return this.currentStatus;
   }
 
+  get title(): string {
+    return this.details.title;
+  }
+
+  get priceCents(): number {
+    return this.details.priceCents;
+  }
+
   get statusInStore(): ListingStatus | null {
     return this.storedStatus;
   }
@@ -102,6 +110,22 @@ export class Listing {
     Listing.assertPublishable(this.details);
     this.currentStatus = "published";
     this.publishedAt = now;
+  }
+
+  /**
+   * Retirée de la vente sans être supprimée : published ou reserved → draft. Utilisé quand le vendeur est suspendu
+   * (annonces en ligne, et celles des commandes annulées pour cette raison) ; il pourra les republier après réactivation.
+   */
+  withdraw(): void {
+    if (this.currentStatus !== "published" && this.currentStatus !== "reserved") {
+      throw new ListingStatusError("retirer de la vente", this.currentStatus);
+    }
+    this.currentStatus = "draft";
+  }
+
+  /** Peut être mise en favori : visible et pas encore vendue. */
+  get canBeFavorited(): boolean {
+    return this.currentStatus === "published" || this.currentStatus === "reserved";
   }
 
   archive(): void {
