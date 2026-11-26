@@ -6,13 +6,20 @@ API REST d'une marketplace de vélos d'occasion entre particuliers : on publie u
 
 ## Démarrer en 2 minutes
 
+**Prérequis** : [Node.js](https://nodejs.org) **22 ou 24** (LTS) avec npm. Rien d'autre : la base est un fichier SQLite créé automatiquement, aucun `.env` n'est nécessaire.
+
 ```bash
+git clone https://github.com/YusufByn/backend-kenan.git
+cd backend-kenan
 npm install
 npm run seed      # crée la base et la remplit avec un jeu de démo
 npm run dev       # http://localhost:3000
 ```
 
-Ouvre **http://localhost:3000/docs** : toutes les routes sont documentées et testables (bouton **Authorize** pour coller un token).
+> `npm install` peut afficher des avertissements `install-scripts` : ils sont normaux, l'installation a bien réussi.
+> Port 3000 déjà pris ? `PORT=3001 npm run dev`.
+
+Ouvre **http://localhost:3000/docs** : toutes les routes sont documentées et testables depuis le navigateur.
 
 Comptes de démo (mot de passe `password123`) :
 
@@ -27,6 +34,26 @@ Comptes de démo (mot de passe `password123`) :
 | `nouveau@velo.test` | email pas encore vérifié |
 
 Sans configuration, tout marche : les emails sont affichés dans le terminal du serveur (avec leurs liens de vérification et de reset). Pour la configuration (SMTP, CORS, secret JWT...), voir [`.env.example`](.env.example).
+
+## Tester dans Swagger
+
+1. Sur http://localhost:3000/docs, ouvre `POST /auth/login` → **Try it out** → `{ "email": "acheteur@velo.test", "password": "password123" }` → **Execute**.
+2. Copie l'`accessToken` de la réponse, clique sur **Authorize** (en haut à droite), colle-le, valide. Toutes les routes protégées marchent maintenant.
+3. Pour changer d'utilisateur : **Authorize** → **Logout**, puis recommence avec un autre compte.
+
+Quelques parcours à essayer :
+
+| Parcours | Avec | Routes |
+|---|---|---|
+| Voir ses commandes, favoris et messages | `acheteur@velo.test` | `GET /orders`, `GET /me/favorites`, `GET /conversations` |
+| Répondre à un acheteur, voir ses ventes à expédier | `vendeur2@velo.test` | `GET /conversations`, `POST /conversations/{id}/messages`, `GET /me/sales?status=paid` |
+| Baisser un prix → alerte email aux favoris | `vendeur@velo.test` | `GET /me/listings`, puis `PATCH /listings/{id}` sur le **Canyon** (suivi par 2 acheteurs) avec `{ "priceCents": 150000 }` : les 2 emails s'affichent dans le terminal |
+| Suspendre un vendeur → ses annonces disparaissent, ses commandes sont annulées | `modo@velo.test` | `GET /admin/users`, `POST /admin/users/{id}/suspend`, puis `GET /listings` |
+| Permissions en bitmask : rendre un user muet | `admin@velo.test` | `PATCH /admin/users/{id}/permissions` avec `{ "revoke": ["MESSAGE_SEND"] }` |
+| Vérifier son email | `nouveau@velo.test` | `POST /auth/resend-verification`, copie le jeton du lien affiché dans le terminal, `POST /auth/verify-email` |
+| Sessions et déconnexion | n'importe qui | `GET /me/sessions`, `POST /auth/refresh`, `POST /auth/logout` |
+
+`npm run seed` remet la démo à zéro à tout moment.
 
 ## Fonctionnalités
 
